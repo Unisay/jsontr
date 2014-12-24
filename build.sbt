@@ -6,6 +6,7 @@ lazy val root = (project in file(".")).settings(
     "org.slf4j" % "slf4j-api" % "1.7.7",
     "org.slf4j" % "slf4j-simple" % "1.7.7",
     "org.json4s" %% "json4s-native" % "3.2.10",
+    "com.googlecode.kiama" %% "kiama" % "1.8.0",
     "net.javacrumbs.json-unit" % "json-unit" % "1.5.1" % "test",
     "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13" % "test",
     "org.specs2" %% "specs2-core" % "2.4.15" % "test"

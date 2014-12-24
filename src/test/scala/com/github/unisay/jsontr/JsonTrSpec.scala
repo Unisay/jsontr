@@ -6,64 +6,86 @@ import org.specs2.mutable.Specification
 
 class JsonTrSpec extends Specification {
 
-  val anyJson =
-    """
-      |{
-      |  "field_1": "value 1",
-      |  "field_2": {
-      |      "field_3" : [ "str", null, 1, 2.0, true, {}, [] ]
-      |  }
-      |}
-    """.stripMargin
-
   "JsonTr" should {
 
+    val json =
+      """
+        |{
+        |  "title": "Forrest Gump",
+        |  "description": null,
+        |  "meta": {
+        |    "running-time": 142.0,
+        |    "year": 1994,
+        |    "best": true,
+        |    "authors": {
+        |      "director": {
+        |        "name": "Robert",
+        |        "surname": "Zemeckis"
+        |      },
+        |      "producer": {
+        |        "name": "Wendy",
+        |        "surname": "Finerman"
+        |      }
+        |    }
+        |  },
+        |  "heroes": [
+        |    {
+        |      "name": "Forrest",
+        |      "surname": "Gump"
+        |    },{
+        |      "name": "Dan",
+        |      "surname": "Taylor"
+        |    }
+        |  ]
+        |}
+      """.stripMargin
+
     "throw exception for invalid template" in {
-      transform(anyJson, "[]") must throwA[InvalidTemplateException]
+      transform(json, "[]") must throwA[InvalidTemplateException]
     }
 
     "produce blank document when no root matched" in {
-      transform(anyJson, """ { "a": "b" } """) must be empty
-    }
-
-    "match root, replace it with array" in {
-      val replacement = """ [ "a", "b", "c" ] """
-      val template = s""" { "(match /)": $replacement } """
-      assertJsonEquals(replacement, transform(anyJson, template)) must not throwA
+      transform(json, """ { "a": "b" } """) must be empty
     }
 
     "handle duplicate matches" in {
       val replacement = """ { "a": "b" } """
       val template = s""" { "(match /)": $replacement, "(match /)": []} """
-      assertJsonEquals(replacement, transform(anyJson, template)) must not throwA
+      assertJsonEquals(replacement, transform(json, template)) must not throwA
+    }
+
+    "match root, replace it with array" in {
+      val replacement = """ [ "a", "b", "c" ] """
+      val template = s""" { "(match /)": $replacement } """
+      assertJsonEquals(replacement, transform(json, template)) must not throwA
     }
 
     "match root, replace it with object" in {
       val replacement = """ { "a": "b" } """
       val template = s""" { "(match /)": $replacement } """
-      assertJsonEquals(replacement, transform(anyJson, template)) must not throwA
-    }
-
-    "match root, do not replace with bool" in {
-      transform(anyJson, """ { "(match /)": true } """) must throwA[InvalidTemplateException]
-    }
-
-    "match root, do not replace with string" in {
-      val template = """ { "(match /)": "foo" } """
-      transform(anyJson, template) must throwA[InvalidTemplateException]
-    }
-
-    "match root, do not replace with number" in {
-      val template = """ { "(match /)": 1 } """
-      transform(anyJson, template) must throwA[InvalidTemplateException]
+      assertJsonEquals(replacement, transform(json, template)) must not throwA
     }
 
     "match root, do not replace with null" in {
       val template = """ { "(match /)": null } """
-      transform(anyJson, template) must throwA[InvalidTemplateException]
+      transform(json, template) must throwA[InvalidTemplateException]
     }
 
-    "match root, copy value-of absolute property path in object" in {
+    "match root, do not replace with bool" in {
+      transform(json, """ { "(match /)": true } """) must throwA[InvalidTemplateException]
+    }
+
+    "match root, do not replace with string" in {
+      val template = """ { "(match /)": "foo" } """
+      transform(json, template) must throwA[InvalidTemplateException]
+    }
+
+    "match root, do not replace with number" in {
+      val template = """ { "(match /)": 1 } """
+      transform(json, template) must throwA[InvalidTemplateException]
+    }
+
+    "match root, copy value-of absolute property path into object, keep original property key" in {
       val source =
         """
           |{
@@ -75,7 +97,7 @@ class JsonTrSpec extends Specification {
         """
           |{
           |  "(match /)": {
-          |    "(value-of)" : "/a"
+          |    "(value-of /a)" : {}
           |  }
           |}
           | """.stripMargin
@@ -86,7 +108,32 @@ class JsonTrSpec extends Specification {
           |}
         """.stripMargin
       assertJsonEquals(expected, transform(source, template)) must not throwA
-    }.pendingUntilFixed("Implement (value-of)")
+    }
+
+    "match root, copy value-of absolute property path into object, replace original property key" in {
+      val source =
+        """
+          |{
+          |  "a": 1,
+          |  "b": 2
+          |}
+        """.stripMargin
+      val template =
+        """
+          |{
+          |  "(match /)": {
+          |    "(value-of /a)" : "other-key"
+          |  }
+          |}
+          | """.stripMargin
+      val expected =
+        """
+          |{
+          |  "other-key": 1
+          |}
+        """.stripMargin
+      assertJsonEquals(expected, transform(source, template)) must not throwA
+    }
 
     "match root, copy value-of relative property path into object" in {
       val source =
@@ -102,7 +149,7 @@ class JsonTrSpec extends Specification {
         """
           |{
           |  "(match /)": {
-          |    "(value-of)" : "a/b"
+          |    "(value-of a/b)" : {}
           |  }
           |}
         """.stripMargin
@@ -113,7 +160,7 @@ class JsonTrSpec extends Specification {
           |}
         """.stripMargin
       assertJsonEquals(expected, transform(source, template)) must not throwA
-    }.pendingUntilFixed("Implement (value-of)")
+    }
 
     "match root, copy value-of absolute property path into array" in {
       val source =
@@ -127,12 +174,12 @@ class JsonTrSpec extends Specification {
         """
           |{
           |  "(match /)": [
-          |    "(value-of)" : "/a"
+          |    "(value-of /a)"
           |  ]
           |}
         """.stripMargin
       assertJsonEquals("[1]", transform(source, template)) must not throwA
-    }.pendingUntilFixed("Implement (value-of)")
+    }
 
     "match root, copy value-of relative property path into array" in {
       val source =
@@ -146,12 +193,12 @@ class JsonTrSpec extends Specification {
         """
           |{
           |  "(match /)": [
-          |    "(value-of)" : "a"
+          |    "(value-of /a)"
           |  ]
           |}
         """.stripMargin
       assertJsonEquals("[1]", transform(source, template)) must not throwA
-    }.pendingUntilFixed("Implement (value-of)")
+    }
 
   }
 

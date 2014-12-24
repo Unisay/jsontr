@@ -1,12 +1,15 @@
 package com.github.unisay.jsontr
 
-import org.json4s.JsonAST.{JNothing, JNumber, JObject}
+import org.json4s.JsonAST.{JNothing, JNumber, JObject, JValue}
+import org.json4s._
 import org.json4s.native.JsonMethods._
-import org.json4s.{JField, JValue, _}
+import org.kiama.rewriting.Rewriter._
+
 
 object JsonTr {
 
   val matchPattern = "\\s*\\(\\s*\\s*match\\s+([^\\\\\"]+)\\s*\\)\\s*".r
+  val valueOfPattern = "\\s*\\(\\s*\\s*value\\-of\\s*([^\\\\\"]+)\\s*\\)\\s*".r
 
   case class Match(path: Seq[Step], body: JValue) {
     override def hashCode = path.hashCode()
@@ -41,18 +44,39 @@ object JsonTr {
     }
   }
 
-  private def processMatchesRecursively(matches: Seq[Match]): Option[JValue] = matches match {
+  private def processValues(sourceAst: JValue, matchBody: JValue): JValue = {
+    val rewritten = rewrite(everywheretd(rule[JField] {
+      case (valueOfPattern(path), JString(valueOfKey)) => JsonPath.eval(sourceAst, path) match {
+        case Some(Left(jsonField)) => JField(valueOfKey, jsonField._2)
+        case Some(Right(jsonValue)) => JField(valueOfKey, jsonValue)
+      }
+      case (valueOfPattern(path), _: JObject) => JsonPath.eval(sourceAst, path) match {
+        case Some(Left(jsonField)) => jsonField
+      }
+
+    }))(matchBody)
+
+    rewrite(everywheretd(rule[JValue] {
+      case JString(valueOfPattern(path)) => JsonPath.eval(sourceAst, path) match {
+        case Some(Left(res)) => res._2
+        case Some(Right(jsonValue)) => jsonValue
+      }
+    }))(rewritten)
+  }
+
+  private def processMatchesRecursively(sourceAst: JValue, matches: Seq[Match]): Option[JValue] = matches match {
     case Nil => None
     case Match(_, body) :: _ => body match {
-      case value: JValue => Some(value)
+      case matchBody: JValue => Some(processValues(sourceAst, matchBody))
     }
   }
 
   @throws[InvalidTemplateException]("if template is invalid")
   def transform(sourceJson: String, templateJson: String): String = {
+    val sourceAst = parse(sourceJson)
     val templateAst = parse(templateJson)
     val matches = extractMatches(templateAst)
-    processMatchesRecursively(matches).map(render).map(pretty).getOrElse("")
+    processMatchesRecursively(sourceAst, matches).map(render).map(pretty).getOrElse("")
   }
 
 }
