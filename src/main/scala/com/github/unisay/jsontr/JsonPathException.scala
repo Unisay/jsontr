@@ -1,5 +1,3 @@
 package com.github.unisay.jsontr
 
-class JsonPathException(message: String) extends Exception {
-
-}
+class JsonPathException(msg: String) extends RuntimeException(msg)

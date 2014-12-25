@@ -1,5 +1,3 @@
 package com.github.unisay.jsontr
 
-class InvalidTemplateException(message: String) extends Exception {
-
-}
+class InvalidTemplateException(msg: String) extends RuntimeException(msg)

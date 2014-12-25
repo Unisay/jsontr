@@ -25,7 +25,6 @@ object JsonTr {
       case JNull => throw new InvalidTemplateException("null value is not allowed in a match body")
       case JNothing => throw new InvalidTemplateException("empty value is not allowed in a match body")
       case _: JBool => throw new InvalidTemplateException("boolean value is not allowed in a match body")
-      case _: JString => throw new InvalidTemplateException("string value is not allowed in a match body")
       case _: JNumber => throw new InvalidTemplateException("numeric value is not allowed in a match body")
       case it => it
     }
@@ -47,19 +46,21 @@ object JsonTr {
   private def processValues(sourceAst: JValue, matchBody: JValue): JValue = {
     val rewritten = rewrite(everywheretd(rule[JField] {
       case (valueOfPattern(path), JString(valueOfKey)) => JsonPath.eval(sourceAst, path) match {
-        case Some(Left(jsonField)) => JField(valueOfKey, jsonField._2)
-        case Some(Right(jsonValue)) => JField(valueOfKey, jsonValue)
+        case Some(jsonField: JField) => JField(valueOfKey, jsonField._2)
+        case Some(jsonValue: JValue) => JField(valueOfKey, jsonValue)
       }
       case (valueOfPattern(path), _: JObject) => JsonPath.eval(sourceAst, path) match {
-        case Some(Left(jsonField)) => jsonField
+        case Some(jsonField: JField) => jsonField
+        case Some(jsonValue: JValue) =>
+          throw new JsonTransformationException(s"Can't insert JSON value ($jsonValue) into object ($sourceAst)")
       }
 
     }))(matchBody)
 
     rewrite(everywheretd(rule[JValue] {
       case JString(valueOfPattern(path)) => JsonPath.eval(sourceAst, path) match {
-        case Some(Left(res)) => res._2
-        case Some(Right(jsonValue)) => jsonValue
+        case Some(res: JField) => res._2
+        case Some(jsonValue: JValue) => jsonValue
       }
     }))(rewritten)
   }
@@ -76,7 +77,11 @@ object JsonTr {
     val sourceAst = parse(sourceJson)
     val templateAst = parse(templateJson)
     val matches = extractMatches(templateAst)
-    processMatchesRecursively(sourceAst, matches).map(render).map(pretty).getOrElse("")
+    processMatchesRecursively(sourceAst, matches).map({
+      case jsonObject: JObject => jsonObject
+      case jsonArray: JArray => jsonArray
+      case jsonType => throw new JsonTransformationException(s"Resulting JSON document has $jsonType as a root")
+    }).map(render).map(pretty).getOrElse("")
   }
 
 }
