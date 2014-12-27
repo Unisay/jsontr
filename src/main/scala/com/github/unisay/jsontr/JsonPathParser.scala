@@ -1,6 +1,6 @@
 package com.github.unisay.jsontr
 
-import org.mvel2.MVEL
+import com.github.unisay.jsontr.MvelExpressionLang._
 
 /**
  * Parser for JsonPath expressions
@@ -22,11 +22,12 @@ object JsonPathParser {
     }
   }
 
-  private def parseStep(step: String, predicate: Option[String]): JsonPathStep = step match {
-    case it if it.forall(_.isDigit) => Index(it.toInt, predicate.map(MVEL.compileExpression))
-    case "*" => All(predicate.map(MVEL.compileExpression))
-    case it => Prop(it, predicate.map(MVEL.compileExpression))
-  }
+  private def parseStep(step: String, predicate: Option[String])(implicit el: ExpressionLang): JsonPathStep =
+    step match {
+      case it if it.forall(_.isDigit) => Index(it.toInt, predicate.map(el.compile))
+      case "*" => All(predicate.map(el.compile))
+      case it => Prop(it, predicate.map(el.compile))
+    }
 
   private def parseStepWithPredicate(str: String): JsonPathStep = {
     str.trim match {

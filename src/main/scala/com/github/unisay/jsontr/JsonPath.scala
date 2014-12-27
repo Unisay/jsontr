@@ -1,8 +1,8 @@
 package com.github.unisay.jsontr
 
+import com.github.unisay.jsontr.MvelExpressionLang._
 import com.github.unisay.jsontr.Node.Nodes
 import org.json4s.JsonAST.{JArray, JObject, JValue}
-import org.mvel2.MVEL
 
 object JsonPath {
 
@@ -24,7 +24,7 @@ object JsonPath {
     }
   }
 
-  private def evalStep(nodes: Nodes, step: JsonPathStep): Nodes = {
+  private def evalStep(nodes: Nodes, step: JsonPathStep)(implicit el: ExpressionLang): Nodes = {
 
     def arrayStep(jsonArray: JArray): Nodes = step match {
       case / => List(Node(jsonArray))
@@ -53,11 +53,7 @@ object JsonPath {
 
     def filterByPredicate(node: Node): Option[Node] = step.predicate() match {
       case None => Some(node)
-      case Some(predicate) =>
-        MVEL.executeExpression(predicate, node.asInstanceOf[Object], classOf[java.lang.Boolean]) match {
-          case b: java.lang.Boolean if b => Some(node)
-          case _ => None
-        }
+      case Some(predicate) => el.applyPredicate(predicate, node)
     }
 
     nodes.flatMap(nodeStep).flatMap(filterByPredicate)
