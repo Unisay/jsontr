@@ -69,7 +69,7 @@ class JsonPathParserSpec extends Specification {
         case Prop(`name`, Some(_)) => true
         case _ => false
       }
-      JsonPathParser.parse("a[p1]/b/c[p2]") must contain(exactly[JsonPathStep](
+      JsonPathParser.parse("a[p1 < p2 && p3]/b/c[p2.name]") must contain(exactly[JsonPathStep](
         stepMatcher("a") _, Prop("b", None), stepMatcher("c") _))
     }
 

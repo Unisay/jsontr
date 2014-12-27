@@ -13,9 +13,12 @@ object Node {
   def unapply(node: Node): Option[(Option[String], JValue)] = Some((node._1, node._2))
 }
 
-class Node(val maybeName: Option[String], val value: JValue) extends Tuple2[Option[String], JValue](maybeName, value) {
+class Node(val maybeName: Option[String], val jsonValue: JValue)
+  extends Tuple2[Option[String], JValue](maybeName, jsonValue) {
   def toJField: JField = this match {
     case Node(None, jsonValue: JValue) => ("", jsonValue)
     case Node(Some(thing), jsonValue: JValue) => (thing, jsonValue)
   }
+
+  def value = jsonValue.values
 }

@@ -52,17 +52,17 @@ object JsonTr {
   private def processValues(sourceAst: JValue, matchBody: JValue): JValue = {
     val fieldMapper: Transform[JField] = {
       // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
-      case (ValueOfPattern(path), JString(fieldName)) => JsonPath.eval(sourceAst, path).map(it => (fieldName, it.value))
+      case (ValueOfPattern(path), JString(fieldName)) => JsonPath.eval(sourceAst, path).map(it => (fieldName, it.jsonValue))
       case (ValueOfPattern(path), _: JObject) => JsonPath.eval(sourceAst, path).map(_.toJField)
       case field => List(field)
     }
     val valueMapper: Transform[JValue] = {
-      case JString(ValueOfPattern(path)) => JsonPath.eval(sourceAst, path).map(_.value)
+      case JString(ValueOfPattern(path)) => JsonPath.eval(sourceAst, path).map(_.jsonValue)
       case value => List(value)
     }
     matchBody match {
       case _: JArray | _: JObject => rewrite(matchBody, fieldMapper, valueMapper)
-      case JString(ValueOfPattern(path)) => JsonPath.eval(sourceAst, path).headOption.map(_.value).getOrElse(matchBody)
+      case JString(ValueOfPattern(path)) => JsonPath.eval(sourceAst, path).headOption.map(_.jsonValue).getOrElse(matchBody)
       case _ => matchBody
     }
   }

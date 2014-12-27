@@ -7,7 +7,7 @@ import org.mvel2.MVEL
  */
 object JsonPathParser {
 
-  val StepWithPredicate = """\s*([^\]\[\s]+)\s*\[\s*([^\]\[\s]*)\s*\]\s*""".r
+  val StepWithPredicate = """\s*([^\]\[\s]+)\s*\[([^\]\[]*)\]\s*""".r
 
   // todo implement using Scala Parser Combinators
   def parse(unsafePathString: String): Seq[JsonPathStep] = {

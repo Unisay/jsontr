@@ -142,8 +142,8 @@ class JsonPathSpec extends Specification {
     }
 
     "return filtered fields" in {
-      JsonPath.eval(json, "heroes/*/name[its.length > 3 && it.startsWith('F')]") must
-        contain(exactly(Node(JString("Forrest"))))
+      JsonPath.eval(json, "heroes/*/name[value.length > 3 && value.startsWith('F')]") must
+        contain(exactly(Node("name", JString("Forrest"))))
     }
 
   }
