@@ -47,7 +47,7 @@ class JsonPathSpec extends Specification {
     }
 
     "return path with functions" in {
-      JsonPath.parse("a/b/c|f1|f2") must be equalTo List(Prop("a"), Prop("b"), Prop("c"), Func("f1"), Func("f2"))
+      JsonPath.parse("a/b/c|f1|f2") must be equalTo List(Prop("a"), Prop("b"), Prop("c", List("f1", "f2")))
     }
 
   }
@@ -81,25 +81,6 @@ class JsonPathSpec extends Specification {
     """.stripMargin
   )
 
-  "JsonPath.evalValue" should {
-    "return a field value" in {
-      JsonPath.evalValue(json, "/title") must beSome(JString("Forrest Gump"))
-    }
-    "return a value directly" in {
-      JsonPath.evalValue(json, "/meta/authors/director") must
-        beSome(JObject(("name", JString("Robert")), ("surname", JString("Zemeckis"))))
-    }
-  }
-
-  "JsonPath.evalField" should {
-    "return a field directly" in {
-      JsonPath.evalField(json, "/title") must beSome("title", JString("Forrest Gump"))
-    }
-    "throw when evaluated to a value" in {
-      JsonPath.evalField(json, "/") must throwA[JsonPathException]
-    }
-  }
-
   "JsonPath.eval" should {
 
     "require a non-null doc" in {
@@ -107,48 +88,50 @@ class JsonPathSpec extends Specification {
     }
 
     "require a non-null path" in {
-      JsonPath.eval(json, null.asInstanceOf[String]) must throwA[IllegalArgumentException] and
-        (JsonPath.evalPath(json, null.asInstanceOf[Seq[Step]]) must throwA[IllegalArgumentException])
+      JsonPath.eval(json, null.asInstanceOf[String]) must throwA[IllegalArgumentException]
     }
 
-    "return None for empty path" ! (JsonPath.eval(json, "") must beNone)
+    "return None for empty path" ! (JsonPath.eval(json, "") must be empty)
 
-    "return None for blank path" ! (JsonPath.eval(json, " ") must beNone)
+    "return None for blank path" ! (JsonPath.eval(json, " ") must be empty)
 
     "return a root document by /" in {
-      JsonPath.eval(json, "/") must beSome(json)
+      JsonPath.eval(json, "/") must contain(exactly(Node(json)))
     }
 
     "return a top field by absolute path" in {
-      JsonPath.eval(json, "/title") must beSome(("title", JString("Forrest Gump")))
+      JsonPath.eval(json, "/title") must contain(exactly(Node("title", JString("Forrest Gump"))))
     }
 
     "return a top field by relative path" in {
-      JsonPath.eval(json, "title") must beSome(("title", JString("Forrest Gump")))
+      JsonPath.eval(json, "title") must contain(exactly(Node("title", JString("Forrest Gump"))))
     }
 
     "return a nested field by absolute path" in {
-      JsonPath.eval(json, "/meta/authors/director/name") must beSome(("name", JString("Robert")))
+      JsonPath.eval(json, "/meta/authors/director/name") must contain(exactly(Node("name", JString("Robert"))))
     }
 
     "return a nested field by relative path" in {
-      JsonPath.eval(json, "meta/authors/director/surname") must beSome(("surname", JString("Zemeckis")))
+      JsonPath.eval(json, "meta/authors/director/surname") must contain(exactly(Node("surname", JString("Zemeckis"))))
     }
 
     "return all object fields" in {
-      JsonPath.eval(json, "meta/authors/director/*") must beSome[AnyRef](List(
-        JField("name", JString("Robert")),
-        JField("surname", JString("Zemeckis"))
+      JsonPath.eval(json, "meta/authors/director/*") must contain(exactly(
+        Node("name", JString("Robert")),
+        Node("surname", JString("Zemeckis"))
       ))
     }
 
     "return array element by index" in {
-      JsonPath.eval(parse( """[ "a", "b", "c" ]"""), "/2") must beSome[AnyRef](JString("c"))
+      JsonPath.eval(parse( """[ "a", "b", "c" ]"""), "/2") must contain(exactly(Node(JString("c"))))
     }
 
     "return all array elements" in {
-      JsonPath.eval(parse( """[ "a", "b", "c" ]"""), "/*") must
-        beSome[AnyRef](List(JString("a"), JString("b"), JString("c")))
+      JsonPath.eval(parse( """[ "a", "b", "c" ]"""), "/*") must contain(exactly(
+        Node(JString("a")),
+        Node(JString("b")),
+        Node(JString("c"))
+      ))
     }
 
     "return by index from all elements" in {
@@ -160,7 +143,7 @@ class JsonPathSpec extends Specification {
           |  [ 7, 8, 9 ]
           |]
         """.stripMargin
-      JsonPath.eval(parse(json), "/*/1") must beSome[AnyRef](List(JInt(2), JInt(5), JInt(8)))
+      JsonPath.eval(parse(json), "/*/1") must contain(exactly(Node(JInt(2)), Node(JInt(5)), Node(JInt(8))))
     }
 
     "return by index from all array elements" in {
@@ -173,8 +156,8 @@ class JsonPathSpec extends Specification {
           |  { "a": 10 }
           |]
         """.stripMargin
-      JsonPath.eval(parse(json), "/*|isArray/1") must beSome[AnyRef](List(JInt(2), JInt(5), JInt(8)))
-    }.pendingUntilFixed("Implement functions")
+      JsonPath.eval(parse(json), "/*|isArray/1") must contain(exactly(Node(JInt(2)), Node(JInt(5)), Node(JInt(8))))
+    }
 
     "return by property from all object elements" in {
       val json =
@@ -185,35 +168,20 @@ class JsonPathSpec extends Specification {
           |  { "a": 11 },
           |]
         """.stripMargin
-      JsonPath.eval(parse(json), "/*|isObject/a") must beSome[AnyRef](List(("a", JInt(10)), ("a", JInt(11))))
-    }.pendingUntilFixed("Implement functions")
+      JsonPath.eval(parse(json), "/*|isObject/a") must contain(exactly(Node("a", JInt(10)), Node("a", JInt(11))))
+    }
 
     "return all array elements" in {
-      JsonPath.eval(json, "heroes/*") must beSome[AnyRef](List(
-        JObject(
-          ("name", JString("Forrest")),
-          ("surname", JString("Gump"))),
-        JObject(
-          ("name", JString("Dan")),
-          ("surname", JString("Taylor"))),
-        JObject(
-          ("name", JString("Jenny")),
-          ("surname", JString("Curan")))
+      JsonPath.eval(json, "heroes/*") must contain(exactly(
+        Node(JObject(("name", JString("Forrest")), ("surname", JString("Gump")))),
+        Node(JObject(("name", JString("Dan")), ("surname", JString("Taylor")))),
+        Node(JObject(("name", JString("Jenny")), ("surname", JString("Curan"))))
       ))
     }
 
     "return filtered fields" in {
-      JsonPath.eval(json, "heroes/*/name|longerThan3|startsWithF", Map(
-        "longerThan3" -> {
-          case jsonString@JString(string) if string.length >= 3 => Some(jsonString)
-          case _ => None
-        },
-        "startsWithF" -> {
-          case jsonString@JString(string) if string.startsWith("F") => Some(jsonString)
-          case _ => None
-        }
-      )) must beSome(Left(("name", JString("Forrest"))))
-    }.pendingUntilFixed("Implement functions")
+      JsonPath.eval(json, "heroes/*/name[mvel expr]") must contain(exactly(Node(JString("Forrest"))))
+    }.pendingUntilFixed("Implement MVEl")
 
   }
 

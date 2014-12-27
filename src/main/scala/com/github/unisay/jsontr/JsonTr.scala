@@ -1,13 +1,11 @@
 package com.github.unisay.jsontr
 
-import org.json4s.JsonAST.{JNothing, JNumber, JObject, JValue}
-import org.json4s._
+import org.json4s.JsonAST._
 import org.json4s.native.JsonMethods._
-import org.kiama.rewriting.Rewriter._
-
 
 object JsonTr {
 
+  type Transform[T] = Function[T, Iterable[T]]
   val matchPattern = "\\s*\\(\\s*\\s*match\\s+([^\\\\\"]+)\\s*\\)\\s*".r
   val valueOfPattern = "\\s*\\(\\s*\\s*value\\-of\\s*([^\\\\\"]+)\\s*\\)\\s*".r
 
@@ -31,8 +29,7 @@ object JsonTr {
 
     def fieldToMatch(field: JField): Option[Match] = {
       field match {
-        case (matchPattern(path), body) =>
-          Some(new Match(JsonPath.parse(path), validateMatchBody(body)))
+        case (matchPattern(path), body) => Some(new Match(JsonPath.parse(path), validateMatchBody(body)))
         case _ => None
       }
     }
@@ -43,26 +40,31 @@ object JsonTr {
     }
   }
 
+  private def rewrite(ast: JValue, fieldMapper: Transform[JField], valueMapper: Transform[JValue]) = {
+    def rec(jsonValue: JValue): JValue = jsonValue match {
+      case JObject(fields) => JObject(fields.map((field) => (field._1, rec(field._2))).flatMap(fieldMapper))
+      case JArray(elements) => JArray(elements.flatMap(elementValue => valueMapper(rec(elementValue))))
+      case x => x
+    }
+    rec(ast)
+  }
+
   private def processValues(sourceAst: JValue, matchBody: JValue): JValue = {
-    val rewritten = rewrite(everywheretd(rule[JField] {
-      case (valueOfPattern(path), JString(valueOfKey)) => JsonPath.eval(sourceAst, path) match {
-        case Some(jsonField: JField) => JField(valueOfKey, jsonField._2)
-        case Some(jsonValue: JValue) => JField(valueOfKey, jsonValue)
-      }
-      case (valueOfPattern(path), _: JObject) => JsonPath.eval(sourceAst, path) match {
-        case Some(jsonField: JField) => jsonField
-        case Some(jsonValue: JValue) =>
-          throw new JsonTransformationException(s"Can't insert JSON value ($jsonValue) into object ($sourceAst)")
-      }
-
-    }))(matchBody)
-
-    rewrite(everywheretd(rule[JValue] {
-      case JString(valueOfPattern(path)) => JsonPath.eval(sourceAst, path) match {
-        case Some(res: JField) => res._2
-        case Some(jsonValue: JValue) => jsonValue
-      }
-    }))(rewritten)
+    val fieldMapper: Transform[JField] = {
+      // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
+      case (valueOfPattern(path), JString(fieldName)) => JsonPath.eval(sourceAst, path).map(it => (fieldName, it.value))
+      case (valueOfPattern(path), _: JObject) => JsonPath.eval(sourceAst, path).map(_.toJField)
+      case field => List(field)
+    }
+    val valueMapper: Transform[JValue] = {
+      case JString(valueOfPattern(path)) => JsonPath.eval(sourceAst, path).map(_.value)
+      case value => List(value)
+    }
+    matchBody match {
+      case _: JArray | _: JObject => rewrite(matchBody, fieldMapper, valueMapper)
+      case JString(valueOfPattern(path)) => JsonPath.eval(sourceAst, path).headOption.map(_.value).getOrElse(matchBody)
+      case _ => matchBody
+    }
   }
 
   private def processMatchesRecursively(sourceAst: JValue, matches: Seq[Match]): Option[JValue] = matches match {
