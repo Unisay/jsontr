@@ -53,7 +53,7 @@ object JsonTr {
     val fieldMapper: Transform[JField] = {
       // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
       case (ValueOfPattern(path), JString(fieldName)) => JsonPath.eval(sourceAst, path).map(it => (fieldName, it.jsonValue))
-      case (ValueOfPattern(path), _: JObject) => JsonPath.eval(sourceAst, path).map(_.toJField)
+      case (ValueOfPattern(path), _: JObject) => JsonPath.eval(sourceAst, path)
       case field => List(field)
     }
     val valueMapper: Transform[JValue] = {

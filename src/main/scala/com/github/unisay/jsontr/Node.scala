@@ -4,6 +4,19 @@ import org.json4s._
 
 object Node {
 
+  type Nodes = Seq[Node]
+
+  implicit def toJField(node: Node): JField = node match {
+    case Node(None, jsonValue: JValue) => ("", jsonValue)
+    case Node(Some(thing), jsonValue: JValue) => (thing, jsonValue)
+  }
+
+  implicit def jsonValuesToNodes(values: Seq[JValue]): Nodes = values.map((field) => Node(field))
+
+  implicit def jsonFieldsToNodes(fields: Seq[JField]): Nodes = fields.map((field) => Node(field))
+
+  implicit def nodesToJsonFields(nodes: Nodes): Seq[JField] = nodes.map((node) => toJField(node))
+
   def apply(name: String, value: JValue) = new Node(Some(name), value)
 
   def apply(value: JValue) = new Node(None, value)
@@ -15,10 +28,6 @@ object Node {
 
 class Node(val maybeName: Option[String], val jsonValue: JValue)
   extends Tuple2[Option[String], JValue](maybeName, jsonValue) {
-  def toJField: JField = this match {
-    case Node(None, jsonValue: JValue) => ("", jsonValue)
-    case Node(Some(thing), jsonValue: JValue) => (thing, jsonValue)
-  }
 
   def value = jsonValue.values
 }

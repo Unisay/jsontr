@@ -1,11 +1,10 @@
 package com.github.unisay.jsontr
 
+import com.github.unisay.jsontr.Node.Nodes
 import org.json4s.JsonAST.{JArray, JObject, JValue}
 import org.mvel2.MVEL
 
 object JsonPath {
-
-  type Nodes = Seq[Node]
 
   def eval(sourceAst: JValue, pathStr: String): Nodes = {
     require(sourceAst != null, "ast is null")
@@ -30,14 +29,14 @@ object JsonPath {
     def arrayStep(jsonArray: JArray): Nodes = step match {
       case / => List(Node(jsonArray))
       case All(_) => jsonArray.arr.map(Node(_))
-      case Index(index, _) => jsonArray.arr.lift(index).map(Node(_)).toIndexedSeq
+      case Index(index, _) => jsonArray.arr.lift(index).toIndexedSeq
       case Prop(property, _) => Seq.empty
     }
 
     def objectStep(jsonObject: JObject): Nodes = step match {
       case / => List(Node(jsonObject))
       case All(_) => jsonObject.obj.map(Node(_))
-      case Prop(property, _) => jsonObject.obj.filter((field) => field._1 == property).map(Node(_))
+      case Prop(property, _) => jsonObject.obj.filter((field) => field._1 == property)
       case Index(index, _) => Seq.empty
     }
 
