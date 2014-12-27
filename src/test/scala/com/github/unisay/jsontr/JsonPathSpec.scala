@@ -6,82 +6,36 @@ import org.specs2.mutable.Specification
 
 class JsonPathSpec extends Specification {
 
-  "JsonPath.parse" should {
-
-    "require a non-null path" in {
-      JsonPath.parse(null) must throwA[IllegalArgumentException]
-    }
-
-    "return empty path for empty string" in {
-      JsonPath.parse("") must be equalTo Nil
-    }
-
-    "return root path for /" in {
-      JsonPath.parse(" / ") must be equalTo List(/)
-    }
-
-    "compress multiple space-separated / into one" in {
-      (JsonPath.parse("//") must be equalTo List(/)) and
-        (JsonPath.parse("/ / /") must be equalTo List(/)) and
-        (JsonPath.parse("/  /  /  /") must be equalTo List(/))
-    }
-
-    "return absolute root property path" in {
-      JsonPath.parse("/prop") must be equalTo List(/, Prop("prop"))
-    }
-
-    "return relative property path" in {
-      JsonPath.parse("prop") must be equalTo List(Prop("prop"))
-    }
-
-    "return absolute nested property path" in {
-      JsonPath.parse("/a/b/c") must be equalTo List(/, Prop("a"), Prop("b"), Prop("c"))
-    }
-
-    "return relative nested property path" in {
-      JsonPath.parse("a/b/c") must be equalTo List(Prop("a"), Prop("b"), Prop("c"))
-    }
-
-    "return path containing All predicate" in {
-      JsonPath.parse("a/*/c") must be equalTo List(Prop("a"), All(), Prop("c"))
-    }
-
-    "return path with functions" in {
-      JsonPath.parse("a/b/c|f1|f2") must be equalTo List(Prop("a"), Prop("b"), Prop("c", List("f1", "f2")))
-    }
-
-  }
-
-  val json: JValue = parse(
-    """
-      |{
-      |  "title": "Forrest Gump",
-      |  "description": null,
-      |  "meta": {
-      |    "running-time": 142.0,
-      |    "year": 1994,
-      |    "best": true,
-      |    "authors": {
-      |      "director": {
-      |        "name": "Robert",
-      |        "surname": "Zemeckis"
-      |      },
-      |      "producer": {
-      |        "name": "Wendy",
-      |        "surname": "Finerman"
-      |      }
-      |    }
-      |  },
-      |  "heroes": [
-      |    { "name": "Forrest", "surname": "Gump"   },
-      |    { "name": "Dan",     "surname": "Taylor" },
-      |    { "name": "Jenny",   "surname": "Curan"  }
-      |  ]
-      |}
-    """.stripMargin
-  )
-
   "JsonPath.eval" should {
+
+    val json: JValue = parse(
+      """
+        |{
+        |  "title": "Forrest Gump",
+        |  "description": null,
+        |  "meta": {
+        |    "running-time": 142.0,
+        |    "year": 1994,
+        |    "best": true,
+        |    "authors": {
+        |      "director": {
+        |        "name": "Robert",
+        |        "surname": "Zemeckis"
+        |      },
+        |      "producer": {
+        |        "name": "Wendy",
+        |        "surname": "Finerman"
+        |      }
+        |    }
+        |  },
+        |  "heroes": [
+        |    { "name": "Forrest", "surname": "Gump"   },
+        |    { "name": "Dan",     "surname": "Taylor" },
+        |    { "name": "Jenny",   "surname": "Curan"  }
+        |  ]
+        |}
+      """.stripMargin
+    )
 
     "require a non-null doc" in {
       JsonPath.eval(null, "/") must throwA[IllegalArgumentException]
@@ -156,7 +110,7 @@ class JsonPathSpec extends Specification {
           |  { "a": 10 }
           |]
         """.stripMargin
-      JsonPath.eval(parse(json), "/*|isArray/1") must contain(exactly(Node(JInt(2)), Node(JInt(5)), Node(JInt(8))))
+      JsonPath.eval(parse(json), "/*/1") must contain(exactly(Node(JInt(2)), Node(JInt(5)), Node(JInt(8))))
     }
 
     "return by property from all object elements" in {
@@ -168,7 +122,7 @@ class JsonPathSpec extends Specification {
           |  { "a": 11 },
           |]
         """.stripMargin
-      JsonPath.eval(parse(json), "/*|isObject/a") must contain(exactly(Node("a", JInt(10)), Node("a", JInt(11))))
+      JsonPath.eval(parse(json), "/*/a") must contain(exactly(Node("a", JInt(10)), Node("a", JInt(11))))
     }
 
     "return all array elements" in {
@@ -179,9 +133,18 @@ class JsonPathSpec extends Specification {
       ))
     }
 
+    "return a property from all array elements" in {
+      JsonPath.eval(json, "heroes/*/name") must contain(exactly(
+        Node("name", JString("Forrest")),
+        Node("name", JString("Dan")),
+        Node("name", JString("Jenny"))
+      ))
+    }
+
     "return filtered fields" in {
-      JsonPath.eval(json, "heroes/*/name[mvel expr]") must contain(exactly(Node(JString("Forrest"))))
-    }.pendingUntilFixed("Implement MVEl")
+      JsonPath.eval(json, "heroes/*/name[value.length > 3 && value.startsWith('F')]") must
+        contain(exactly(Node("name", JString("Forrest"))))
+    }
 
   }
 
