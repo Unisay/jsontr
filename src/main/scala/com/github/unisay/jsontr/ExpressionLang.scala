@@ -2,6 +2,10 @@ package com.github.unisay.jsontr
 
 case class Expression(source: Any)
 
+object Expression {
+  implicit def stringToExpression(s: String)(implicit el: ExpressionLang): Expression = el.compile(s)
+}
+
 /**
  * Expression Language
  */

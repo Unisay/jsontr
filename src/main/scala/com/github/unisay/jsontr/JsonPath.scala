@@ -11,8 +11,8 @@ object JsonPath {
 
     val path = JsonPathParser.parse(pathStr)
     path match {
-      case Seq(/, _*) => evalPath(List(Node(sourceAst)), path)
-      case Seq(_: JsonPathStep, _*) => evalPath(List(Node(sourceAst)), / +: path)
+      case Seq(Root(_), _*) => evalPath(List(Node(sourceAst)), path)
+      case Seq(_: JsonPathStep, _*) => evalPath(List(Node(sourceAst)), Root() +: path)
       case _ => Seq.empty
     }
   }
@@ -27,14 +27,14 @@ object JsonPath {
   private def evalStep(nodes: Nodes, step: JsonPathStep)(implicit el: ExpressionLang): Nodes = {
 
     def arrayStep(jsonArray: JArray): Nodes = step match {
-      case / => List(Node(jsonArray))
+      case Root(_) => List(Node(jsonArray))
       case All(_) => jsonArray.arr.map(Node(_))
       case Index(index, _) => jsonArray.arr.lift(index).toIndexedSeq
       case Prop(property, _) => Seq.empty
     }
 
     def objectStep(jsonObject: JObject): Nodes = step match {
-      case / => List(Node(jsonObject))
+      case Root(_) => List(Node(jsonObject))
       case All(_) => jsonObject.obj.map(Node(_))
       case Prop(property, _) => jsonObject.obj.filter((field) => field._1 == property)
       case Index(index, _) => Seq.empty

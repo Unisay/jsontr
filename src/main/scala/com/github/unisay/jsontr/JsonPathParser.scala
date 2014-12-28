@@ -2,39 +2,55 @@ package com.github.unisay.jsontr
 
 import com.github.unisay.jsontr.MvelExpressionLang._
 
-/**
- * Parser for JsonPath expressions
- */
-object JsonPathParser {
+import scala.util.parsing.combinator.JavaTokenParsers
 
-  val StepWithPredicate = """\s*([^\]\[\s]+)\s*\[([^\]\[]*)\]\s*""".r
+sealed trait JsonPathStep {
+  def predicate(): Option[Expression]
+}
 
-  // todo implement using Scala Parser Combinators
-  def parse(unsafePathString: String): Seq[JsonPathStep] = {
-    require(unsafePathString != null, "path is null")
+case class Root(predicate: Option[Expression] = None) extends JsonPathStep
 
-    val path = unsafePathString.trim
-    if (path.isEmpty) return List()
+case class All(predicate: Option[Expression] = None) extends JsonPathStep
 
-    path.replaceAll("/[\\s/]*/", "/").split("/").map(parseStepWithPredicate) match {
-      case Array() => List(/)
-      case steps => List(steps: _*)
-    }
+case class Prop(field: String, predicate: Option[Expression] = None) extends JsonPathStep
+
+case class Index(index: Int, predicate: Option[Expression] = None) extends JsonPathStep
+
+object JsonPathParser extends JavaTokenParsers {
+
+  def path: Parser[Seq[JsonPathStep]] = opt(rootStep) ~ repsep(step, """\s*/\s*""".r) ^^ {
+    case Some(r) ~ p => r +: p
+    case None ~ p => p
   }
 
-  private def parseStep(step: String, predicate: Option[String])(implicit el: ExpressionLang): JsonPathStep =
-    step match {
-      case it if it.forall(_.isDigit) => Index(it.toInt, predicate.map(el.compile))
-      case "*" => All(predicate.map(el.compile))
-      case it => Prop(it, predicate.map(el.compile))
+  def step = indexStep | allStep | propStep
+
+  def rootStep = "/" ~ opt(predicate) ^^ { case _ ~ optPredicate => Root(optPredicate)}
+
+  def indexStep = index ~ opt(predicate) ^^ { case index ~ optPredicate => Index(index, optPredicate)}
+
+  def allStep = "*" ~ opt(predicate) ^^ { case _ ~ optPredicate => All(optPredicate)}
+
+  def propStep = property ~ opt(predicate) ^^ { case step ~ optPredicate => Prop(step, optPredicate)}
+
+  def index = wholeNumber ^^ (_.toInt)
+
+  def property = """[^/"\[\]]+""".r
+
+  def predicate: Parser[Expression] = "[" ~> expression <~ "]" ^^ (expression => expression.trim)
+
+  def expression = """[^\]]+""".r
+
+  def parse(source: String): Seq[JsonPathStep] = {
+    require(source != null)
+    source.trim match {
+      case "" => Seq.empty
+      case s => parseAll(path, s) match {
+        case Success(result, _) => result
+        case NoSuccess(error, _) => throw new RuntimeException(error)
+      }
     }
 
-  private def parseStepWithPredicate(str: String): JsonPathStep = {
-    str.trim match {
-      case "" => /
-      case StepWithPredicate(step, predicate) => parseStep(step, Option(predicate).filter(_.trim.nonEmpty))
-      case stepWithoutPredicate => parseStep(stepWithoutPredicate, None)
-    }
   }
 
 }
