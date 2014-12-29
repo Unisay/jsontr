@@ -7,21 +7,19 @@ import org.json4s.native.JsonMethods._
 object JsonTr {
 
   type Transform[T] = Function[T, Iterable[T]]
-  val MatchPattern = """\s*\(\s*\s*match\s+([^\\"]+)\s*\)\s*""".r
-  val ValueOfPattern = """\s*\(\s*\s*value\-of\s*([^\\"]+)\s*\)\s*""".r
+  val TemplatePattern = """\s*~match\s+([^\\"]+)\s*""".r
+  val ValueOfPattern = """\s*~value\-of\s*([^\\"]+)\s*""".r
 
-  case class Match(pathStr: String, body: JValue) {
+  case class Template(pathStr: String, body: JValue) {
     override def hashCode = pathStr.hashCode()
 
     override def equals(that: Any): Boolean = that match {
-      case o: Match => this.pathStr == o.pathStr
+      case o: Template => this.pathStr == o.pathStr
       case _ => false
     }
   }
 
-  class MatchedAst(val nodes: Nodes, val jsonMatch: Match)
-
-  private def extractMatches(json: JValue): Seq[Match] = {
+  private def extractMatches(json: JValue): Seq[Template] = {
     def validateMatchBody(body: JValue): JValue = body match {
       case JNull => throw new InvalidTemplateException("null value is not allowed in a match body")
       case JNothing => throw new InvalidTemplateException("empty value is not allowed in a match body")
@@ -30,9 +28,9 @@ object JsonTr {
       case it => it
     }
 
-    def fieldToMatch(field: JField): Option[Match] = {
+    def fieldToMatch(field: JField): Option[Template] = {
       field match {
-        case (MatchPattern(path), body) => Some(new Match(path, validateMatchBody(body)))
+        case (TemplatePattern(path), body) => Some(new Template(path, validateMatchBody(body)))
         case _ => None
       }
     }
@@ -52,8 +50,8 @@ object JsonTr {
     rec(ast)
   }
 
-  private def processMatches(sourceAst: JValue, matches: Seq[Match]): Option[JValue] = {
-    def processValues(jsonMatch: Match, sourceNodes: Nodes, matchedNodes: Nodes): JValue = {
+  private def processTemplates(sourceAst: JValue, templates: Seq[Template]): Option[JValue] = {
+    def processValues(template: Template, sourceNodes: Nodes, matchedNodes: Nodes): JValue = {
       val fieldMapper: Transform[JField] = {
         // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
         case (ValueOfPattern(path), JString(fieldName)) =>
@@ -67,18 +65,19 @@ object JsonTr {
           JsonPath.eval(path, sourceNodes, matchedNodes).map(_.jsonValue)
         case value => List(value)
       }
-      jsonMatch.body match {
+      template.body match {
         case _: JArray | _: JObject =>
-          rewrite(jsonMatch.body, fieldMapper, valueMapper)
+          rewrite(template.body, fieldMapper, valueMapper)
         case JString(ValueOfPattern(path)) =>
-          JsonPath.eval(path, sourceNodes, matchedNodes).headOption.map(_.jsonValue).getOrElse(jsonMatch.body)
-        case _ => jsonMatch.body
+          JsonPath.eval(path, sourceNodes, matchedNodes).headOption.map(_.jsonValue).getOrElse(template.body)
+        case _ => template.body
       }
     }
 
-    matches
-      .map(matchInstruction => (matchInstruction, JsonPath.eval(matchInstruction.pathStr, sourceAst)))
-      .map(matched => processValues(matched._1, sourceAst, matched._2)).headOption
+    templates
+      .map(template => (template, JsonPath.eval(template.pathStr, sourceAst)))
+      .map(matched => processValues(matched._1, sourceAst, matched._2))
+      .headOption
   }
 
   @throws[InvalidTemplateException]("if template is invalid")
@@ -86,7 +85,7 @@ object JsonTr {
     val sourceAst = parse(sourceJson)
     val templateAst = parse(templateJson)
     val matches = extractMatches(templateAst)
-    processMatches(sourceAst, matches).map({
+    processTemplates(sourceAst, matches).map({
       case jsonObject: JObject => jsonObject
       case jsonArray: JArray => jsonArray
       case jsonType => throw new JsonTransformationException(s"Resulting JSON document has $jsonType as a root")

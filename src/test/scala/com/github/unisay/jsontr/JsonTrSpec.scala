@@ -50,38 +50,38 @@ class JsonTrSpec extends Specification {
 
     "handle duplicate matches" in {
       val replacement = """ { "a": "b" } """
-      val template = s""" { "(match /)": $replacement, "(match /)": []} """
+      val template = s""" { "~match /": $replacement, "~match /": []} """
       assertJsonEquals(replacement, transform(json, template)) must not throwA
     }
 
     "match root, replace it with array" in {
       val replacement = """ [ "a", "b", "c" ] """
-      val template = s""" { "(match /)": $replacement } """
+      val template = s""" { "~match /": $replacement } """
       assertJsonEquals(replacement, transform(json, template)) must not throwA
     }
 
     "match root, replace it with object" in {
       val replacement = """ { "a": "b" } """
-      val template = s""" { "(match /)": $replacement } """
+      val template = s""" { "~match /": $replacement } """
       assertJsonEquals(replacement, transform(json, template)) must not throwA
     }
 
     "match root, do not replace with null" in {
-      val template = """ { "(match /)": null } """
+      val template = """ { "~match /": null } """
       transform(json, template) must throwA[InvalidTemplateException]
     }
 
     "match root, do not replace with bool" in {
-      transform(json, """ { "(match /)": true } """) must throwA[InvalidTemplateException]
+      transform(json, """ { "~match /": true } """) must throwA[InvalidTemplateException]
     }
 
     "match root, do not replace with string" in {
-      val template = """ { "(match /)": "foo" } """
+      val template = """ { "~match /": "foo" } """
       transform(json, template) must throwA[JsonTransformationException]
     }
 
     "match root, do not replace with number" in {
-      val template = """ { "(match /)": 1 } """
+      val template = """ { "~match /": 1 } """
       transform(json, template) must throwA[InvalidTemplateException]
     }
 
@@ -95,7 +95,7 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "(match /)": "(value-of /a)"
+          |  "~match /": "~value-of /a"
           |}
         """.stripMargin
       val expected =
@@ -118,9 +118,9 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "(match /)": {
+          |  "~match /": {
           |    "before": 0,
-          |    "(value-of /a)" : {},
+          |    "~value-of /a" : {},
           |    "after": 2
           |  }
           |}
@@ -147,9 +147,9 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "(match /)": {
+          |  "~match /": {
           |    "before": 0,
-          |    "(value-of /a)" : "other-key",
+          |    "~value-of /a" : "other-key",
           |    "after": 2
           |  }
           |}
@@ -178,9 +178,9 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "(match /)": {
+          |  "~match /": {
           |    "before": [],
-          |    "(value-of a/b)" : {},
+          |    "~value-of a/b" : {},
           |    "after": []
           |  }
           |}
@@ -207,9 +207,9 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "(match /)": [
+          |  "~match /": [
           |    "before",
-          |    "(value-of /a)",
+          |    "~value-of /a",
           |    "after"
           |  ]
           |}
@@ -230,9 +230,11 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "(match /)": [
+          |  "~match /": [
           |    "before",
-          |    { "(value-of /a)": {} },
+          |    { 
+          |      "~value-of /a": {} 
+          |    },
           |    "after"
           |  ]
           |}
@@ -253,9 +255,9 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "(match /)": [
+          |  "~match /": [
           |    "before",
-          |    "(value-of /a)",
+          |    "~value-of /a",
           |    "after"
           |  ]
           |}
@@ -279,9 +281,9 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "(match /sup)": [
+          |  "~match /sup": [
           |    "before",
-          |    "(value-of sub/name)",
+          |    "~value-of sub/name",
           |    "after"
           |  ]
           |}
@@ -306,11 +308,7 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "(match /sup)": [
-          |    "before",
-          |    "(value-of /absolute)",
-          |    "after"
-          |  ]
+          |  "~match /sup": [ "before", "~value-of /absolute", "after" ]
           |}
         """.stripMargin
       val expected = """ [ "before", "path", "after" ] """

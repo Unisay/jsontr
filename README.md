@@ -4,7 +4,6 @@ JsonTr
 
 JsonTr is a JSON-based declarative transformation language for JSON (like XSLT for XML).
 
-For example:
 Given source JSON
 ```json
 {
@@ -18,9 +17,9 @@ Given source JSON
 and template JSON
 ```json
 {
-  "(match /sup)": [
+  "~match /sup": [
     "before",
-    "(value-of sub/name)",
+    "~value-of sub/name",
     "after"
   ]
 }
@@ -34,4 +33,4 @@ result of transformation will be
 ]
 ```
 
-The project is under development and is not ready for use.
+The project is under development and is not yet ready for use.
