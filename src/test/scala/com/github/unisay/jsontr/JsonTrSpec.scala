@@ -291,6 +291,33 @@ class JsonTrSpec extends Specification {
       assertJsonEquals(expected, actual) must not throwA
     }
 
+    "match sub-object, value-of absolute property path into array" in {
+      val source =
+        """
+          |{
+          |  "sup": {
+          |     "sub": {
+          |       "name": "middle"
+          |     }
+          |  },
+          |  "absolute": "path"
+          |}
+        """.stripMargin
+      val template =
+        """
+          |{
+          |  "(match /sup)": [
+          |    "before",
+          |    "(value-of /absolute)",
+          |    "after"
+          |  ]
+          |}
+        """.stripMargin
+      val expected = """ [ "before", "path", "after" ] """
+      val actual = transform(source, template)
+      assertJsonEquals(expected, actual) must not throwA
+    }
+
   }
 
 }

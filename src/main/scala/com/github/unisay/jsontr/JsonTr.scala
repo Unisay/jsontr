@@ -53,33 +53,32 @@ object JsonTr {
   }
 
   private def processMatches(sourceAst: JValue, matches: Seq[Match]): Option[JValue] = {
-    def processValues(sourceAst: JValue, matchedAst: MatchedAst): JValue = {
+    def processValues(jsonMatch: Match, sourceNodes: Nodes, matchedNodes: Nodes): JValue = {
       val fieldMapper: Transform[JField] = {
         // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
         case (ValueOfPattern(path), JString(fieldName)) =>
-          JsonPath.eval(path, matchedAst.nodes).map(it => (fieldName, it.jsonValue))
+          JsonPath.eval(path, sourceNodes, matchedNodes).map(it => (fieldName, it.jsonValue))
         case (ValueOfPattern(path), _: JObject) =>
-          JsonPath.eval(path, matchedAst.nodes)
+          JsonPath.eval(path, sourceNodes, matchedNodes)
         case field => List(field)
       }
       val valueMapper: Transform[JValue] = {
         case JString(ValueOfPattern(path)) =>
-          JsonPath.eval(path, matchedAst.nodes).map(_.jsonValue)
+          JsonPath.eval(path, sourceNodes, matchedNodes).map(_.jsonValue)
         case value => List(value)
       }
-      val body: JValue = matchedAst.jsonMatch.body
-      body match {
+      jsonMatch.body match {
         case _: JArray | _: JObject =>
-          rewrite(body, fieldMapper, valueMapper)
+          rewrite(jsonMatch.body, fieldMapper, valueMapper)
         case JString(ValueOfPattern(path)) =>
-          JsonPath.eval(path, matchedAst.nodes).headOption.map(_.jsonValue).getOrElse(body)
-        case _ => body
+          JsonPath.eval(path, sourceNodes, matchedNodes).headOption.map(_.jsonValue).getOrElse(jsonMatch.body)
+        case _ => jsonMatch.body
       }
     }
 
     matches
-      .map(matchInstruction => new MatchedAst(JsonPath.eval(matchInstruction.pathStr, sourceAst), matchInstruction))
-      .map(matchedAst => processValues(sourceAst, matchedAst)).headOption
+      .map(matchInstruction => (matchInstruction, JsonPath.eval(matchInstruction.pathStr, sourceAst)))
+      .map(matched => processValues(matched._1, sourceAst, matched._2)).headOption
   }
 
   @throws[InvalidTemplateException]("if template is invalid")
