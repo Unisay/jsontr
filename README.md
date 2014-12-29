@@ -2,7 +2,7 @@ JsonTr
 ======
 [![Build Status](https://travis-ci.org/Unisay/jsontr.svg?branch=master)](https://travis-ci.org/Unisay/jsontr)
 
-JsonTr is a transformation language for JSON (like XSLT for XML).
+JsonTr is a JSON-based declarative transformation language for JSON (like XSLT for XML).
 
 For example:
 Given source JSON
