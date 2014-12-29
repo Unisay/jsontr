@@ -6,25 +6,31 @@ import org.json4s.JsonAST.{JArray, JObject, JValue}
 
 object JsonPath {
 
-  def eval(sourceAst: JValue, pathStr: String): Nodes = {
-    require(sourceAst != null, "ast is null")
-
+  def eval(pathStr: String, nodes: Nodes): Nodes = {
+    require(nodes != null, "nodes is null")
     val path = JsonPathParser.parse(pathStr)
     path match {
-      case Seq(Root(_), _*) => evalPath(List(Node(sourceAst)), path)
-      case Seq(_: JsonPathStep, _*) => evalPath(List(Node(sourceAst)), Root() +: path)
+      case Seq(Root(_), _*) => evalPath(path, nodes)
+      case Seq(_: JsonPathStep, _*) => evalPath(Root() +: path, nodes)
       case _ => Seq.empty
     }
   }
 
-  private def evalPath(nodes: Nodes, path: Seq[JsonPathStep]): Nodes = {
+  def eval(pathStr: String, absoluteNodes: Nodes, relativeNodes: Nodes): Nodes = {
+    if (pathStr.startsWith("/"))
+      eval(pathStr, absoluteNodes)
+    else
+      eval(pathStr, relativeNodes)
+  }
+
+  private def evalPath(path: Seq[JsonPathStep], nodes: Nodes): Nodes = {
     path match {
       case Seq() => nodes
-      case Seq(step, tail@_*) => evalPath(evalStep(nodes, step), tail)
+      case Seq(step, tail@_*) => evalPath(tail, evalStep(step, nodes))
     }
   }
 
-  private def evalStep(nodes: Nodes, step: JsonPathStep)(implicit el: ExpressionLang): Nodes = {
+  private def evalStep(step: JsonPathStep, nodes: Nodes)(implicit el: ExpressionLang): Nodes = {
 
     def arrayStep(jsonArray: JArray): Nodes = step match {
       case Root(_) => List(Node(jsonArray))

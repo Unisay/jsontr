@@ -1,0 +1,7 @@
+{
+  "(match /widget)": [
+    1,
+    "(value-of text/size)",
+    2
+  ]
+}

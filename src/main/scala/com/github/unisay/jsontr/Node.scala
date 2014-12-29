@@ -1,5 +1,6 @@
 package com.github.unisay.jsontr
 
+import org.json4s.JsonAST.JValue
 import org.json4s._
 
 object Node {
@@ -11,7 +12,15 @@ object Node {
     case Node(Some(thing), jsonValue: JValue) => (thing, jsonValue)
   }
 
-  implicit def jsonValuesToNodes(values: Seq[JValue]): Nodes = values.map((field) => Node(field))
+  implicit def jsonValueToNodes(value: JValue): Nodes = {
+    require(value != null, "value is null")
+    List(Node(value))
+  }
+
+  implicit def jsonValuesToNodes(values: Seq[JValue]): Nodes = {
+    require(values != null, "values is null")
+    values.map((field) => Node(field))
+  }
 
   implicit def jsonFieldsToNodes(fields: Seq[JField]): Nodes = fields.map((field) => Node(field))
 

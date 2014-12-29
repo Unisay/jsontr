@@ -1,5 +1,6 @@
 package com.github.unisay.jsontr
 
+import com.github.unisay.jsontr.Node.Nodes
 import org.json4s.JsonAST._
 import org.json4s.native.JsonMethods._
 
@@ -9,14 +10,16 @@ object JsonTr {
   val MatchPattern = """\s*\(\s*\s*match\s+([^\\"]+)\s*\)\s*""".r
   val ValueOfPattern = """\s*\(\s*\s*value\-of\s*([^\\"]+)\s*\)\s*""".r
 
-  case class Match(path: Seq[JsonPathStep], body: JValue) {
-    override def hashCode = path.hashCode()
+  case class Match(pathStr: String, body: JValue) {
+    override def hashCode = pathStr.hashCode()
 
     override def equals(that: Any): Boolean = that match {
-      case o: Match => this.path == o.path
+      case o: Match => this.pathStr == o.pathStr
       case _ => false
     }
   }
+
+  class MatchedAst(val nodes: Nodes, val jsonMatch: Match)
 
   private def extractMatches(json: JValue): Seq[Match] = {
     def validateMatchBody(body: JValue): JValue = body match {
@@ -29,7 +32,7 @@ object JsonTr {
 
     def fieldToMatch(field: JField): Option[Match] = {
       field match {
-        case (MatchPattern(path), body) => Some(new Match(JsonPathParser.parse(path), validateMatchBody(body)))
+        case (MatchPattern(path), body) => Some(new Match(path, validateMatchBody(body)))
         case _ => None
       }
     }
@@ -49,29 +52,34 @@ object JsonTr {
     rec(ast)
   }
 
-  private def processValues(sourceAst: JValue, matchBody: JValue): JValue = {
-    val fieldMapper: Transform[JField] = {
-      // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
-      case (ValueOfPattern(path), JString(fieldName)) => JsonPath.eval(sourceAst, path).map(it => (fieldName, it.jsonValue))
-      case (ValueOfPattern(path), _: JObject) => JsonPath.eval(sourceAst, path)
-      case field => List(field)
+  private def processMatches(sourceAst: JValue, matches: Seq[Match]): Option[JValue] = {
+    def processValues(sourceAst: JValue, matchedAst: MatchedAst): JValue = {
+      val fieldMapper: Transform[JField] = {
+        // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
+        case (ValueOfPattern(path), JString(fieldName)) =>
+          JsonPath.eval(path, matchedAst.nodes).map(it => (fieldName, it.jsonValue))
+        case (ValueOfPattern(path), _: JObject) =>
+          JsonPath.eval(path, matchedAst.nodes)
+        case field => List(field)
+      }
+      val valueMapper: Transform[JValue] = {
+        case JString(ValueOfPattern(path)) =>
+          JsonPath.eval(path, matchedAst.nodes).map(_.jsonValue)
+        case value => List(value)
+      }
+      val body: JValue = matchedAst.jsonMatch.body
+      body match {
+        case _: JArray | _: JObject =>
+          rewrite(body, fieldMapper, valueMapper)
+        case JString(ValueOfPattern(path)) =>
+          JsonPath.eval(path, matchedAst.nodes).headOption.map(_.jsonValue).getOrElse(body)
+        case _ => body
+      }
     }
-    val valueMapper: Transform[JValue] = {
-      case JString(ValueOfPattern(path)) => JsonPath.eval(sourceAst, path).map(_.jsonValue)
-      case value => List(value)
-    }
-    matchBody match {
-      case _: JArray | _: JObject => rewrite(matchBody, fieldMapper, valueMapper)
-      case JString(ValueOfPattern(path)) => JsonPath.eval(sourceAst, path).headOption.map(_.jsonValue).getOrElse(matchBody)
-      case _ => matchBody
-    }
-  }
 
-  private def processMatchesRecursively(sourceAst: JValue, matches: Seq[Match]): Option[JValue] = matches match {
-    case Nil => None
-    case Match(_, body) :: _ => body match {
-      case matchBody: JValue => Some(processValues(sourceAst, matchBody))
-    }
+    matches
+      .map(matchInstruction => new MatchedAst(JsonPath.eval(matchInstruction.pathStr, sourceAst), matchInstruction))
+      .map(matchedAst => processValues(sourceAst, matchedAst)).headOption
   }
 
   @throws[InvalidTemplateException]("if template is invalid")
@@ -79,7 +87,7 @@ object JsonTr {
     val sourceAst = parse(sourceJson)
     val templateAst = parse(templateJson)
     val matches = extractMatches(templateAst)
-    processMatchesRecursively(sourceAst, matches).map({
+    processMatches(sourceAst, matches).map({
       case jsonObject: JObject => jsonObject
       case jsonArray: JArray => jsonArray
       case jsonType => throw new JsonTransformationException(s"Resulting JSON document has $jsonType as a root")

@@ -27,13 +27,11 @@ object JsonPathParser extends JavaTokenParsers {
 
   def rootStep = "/" ~ opt(predicate) ^^ { case _ ~ optPredicate => Root(optPredicate)}
 
-  def indexStep = index ~ opt(predicate) ^^ { case index ~ optPredicate => Index(index, optPredicate)}
+  def indexStep = wholeNumber ~ opt(predicate) ^^ { case index ~ optPredicate => Index(index.toInt, optPredicate)}
 
   def allStep = "*" ~ opt(predicate) ^^ { case _ ~ optPredicate => All(optPredicate)}
 
   def propStep = property ~ opt(predicate) ^^ { case step ~ optPredicate => Prop(step, optPredicate)}
-
-  def index = wholeNumber ^^ (_.toInt)
 
   def property = """[^/"\[\]]+""".r
 
