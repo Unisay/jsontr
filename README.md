@@ -1,4 +1,4 @@
-jsontr
+JsonTr
 ======
 
 JsonTr is a transformation language for JSON (like XSLT for XML).
