@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>JsonTr Examples</title>
 
+    <!--<script src="https://google-code-prettify.googlecode.com/svn/loader/run_prettify.js"></script>-->
+
     <!-- Bootstrap -->
     <link href="css/bootstrap.min.css" rel="stylesheet">
 
@@ -17,11 +19,6 @@
     <![endif]-->
 </head>
 <body>
-<style>
-    .hljs {
-        background: none !important;
-    }
-</style>
 <div class="container">
     <div class="page-header">
         <h1>JsonTr
@@ -36,34 +33,31 @@
         </tr>
         <tr>
             <td>
-        <pre>
-        {
-            "sup": {
-                "sub": {
-                    "name": "middle"
-                }
-            }
+        <pre class="prettyprint">{
+    "sup": {
+        "sub": {
+            "name": "middle"
         }
+    }
+}
 </pre>
             </td>
             <td>
-        <pre>
-        {
-            "~match /sup": [
-                "before",
-                "~value-of sub/name",
-                "after"
-            ]
-        }
+        <pre class="prettyprint">{
+    "~match /sup": [
+        "before",
+        "~value-of sub/name",
+        "after"
+    ]
+}
 </pre>
             </td>
             <td>
-        <pre>
-        [
-            "before",
-            "middle",
-            "after"
-        ]
+        <pre class="prettyprint">[
+    "before",
+    "middle",
+    "after"
+]
 </pre>
             </td>
         </tr>
