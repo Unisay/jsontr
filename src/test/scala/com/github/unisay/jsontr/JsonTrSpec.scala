@@ -316,6 +316,154 @@ class JsonTrSpec extends Specification {
       assertJsonEquals(expected, actual) must not throwA
     }
 
+    "for-each property replace it with value" in {
+      val source =
+        """
+          |{
+          |  "sup": [
+          |    1,
+          |    "a",
+          |    { "b": "c" }
+          |  ]
+          |}
+        """.stripMargin
+      val template =
+        """
+          |{
+          |  "~match /sup": [
+          |    "before",
+          |    "~for-each *": "ignored",
+          |    "after"
+          |  ]
+          |}
+        """.stripMargin
+      val expected =
+        """
+          |[
+          |  "before",
+          |  "ignored",
+          |  "ignored",
+          |  "ignored",
+          |  "after"
+          |]
+        """.stripMargin
+      val actual = transform(source, template)
+      assertJsonEquals(expected, actual) must not throwA
+    }.pendingUntilFixed("for-each")
+
+    "for-each array element copy it into array" in {
+      val source =
+        """
+          |{
+          |  "sup": [
+          |    1,
+          |    "a",
+          |    { "b": "c" }
+          |  ]
+          |}
+        """.stripMargin
+      val template =
+        """
+          |{
+          |  "~match /sup": [
+          |    "before",
+          |    "~for-each *": "~value-of .",
+          |    "after"
+          |  ]
+          |}
+        """.stripMargin
+      val expected =
+        """
+          |[
+          |  "before",
+          |  1,
+          |  "a",
+          |  { "b": "c" },
+          |  "after"
+          |]
+        """.stripMargin
+      val actual = transform(source, template)
+      assertJsonEquals(expected, actual) must not throwA
+    }.pendingUntilFixed("for-each")
+
+    "for-each array element decorate and copy it into array" in {
+      val source =
+        """
+          |{
+          |  "sup": [
+          |    1,
+          |    "a",
+          |    { "b": "c" }
+          |  ]
+          |}
+        """.stripMargin
+      val template =
+        """
+          |{
+          |  "~match /sup": [
+          |    "before",
+          |    "~for-each *": [
+          |      "(",
+          |      "~value-of .",
+          |      ")"
+          |    ],
+          |    "after"
+          |  ]
+          |}
+        """.stripMargin
+      val expected =
+        """
+          |[
+          |  "before",
+          |  "(", 1, ")",
+          |  "(", "a", ")",
+          |  "(", { "b": "c" }, ")",
+          |  "after"
+          |]
+        """.stripMargin
+      val actual = transform(source, template)
+      assertJsonEquals(expected, actual) must not throwA
+    }.pendingUntilFixed("for-each")
+
+    "for-each array element decorate and copy it into object" in {
+      val source =
+        """
+          |{
+          |  "sup": {
+          |    "he": "h",
+          |    "she": "s",
+          |    "it": "i"
+          |  }
+          |}
+        """.stripMargin
+      val template =
+        """
+          |{
+          |  "~match /sup": {
+          |    "before": "before",
+          |    "~for-each *": {
+          |      "a": "b",
+          |      "~value-of .": {},
+          |      "c": "d"
+          |    },
+          |    "after": "after"
+          |  }
+          |}
+        """.stripMargin
+      val expected =
+        """
+          |{
+          |  "before": "before",
+          |  "a": "b",
+          |  "he": "h"
+          |  "c": "d",
+          |  "after": "after"
+          |}
+        """.stripMargin
+      val actual = transform(source, template)
+      assertJsonEquals(expected, actual) must not throwA
+    }.pendingUntilFixed("for-each")
+
   }
 
 }
