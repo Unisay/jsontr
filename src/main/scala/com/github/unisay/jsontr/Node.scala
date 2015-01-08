@@ -24,7 +24,11 @@ object Node {
 
   implicit def jsonFieldsToNodes(fields: Seq[JField]): Nodes = fields.map((field) => Node(field))
 
-  implicit def nodesToJsonFields(nodes: Nodes): Seq[JField] = nodes.map((node) => toJField(node))
+  implicit def nodesToJsonFields(nodes: Iterable[Node]): Iterable[JField] = nodes.map(toJField)
+
+  implicit def nodesToJsonValues(nodes: Iterable[Node]): Iterable[JValue] = nodes.map(_.jsonValue)
+
+  def apply(maybeName: Option[String], value: JValue) = new Node(maybeName, value)
 
   def apply(name: String, value: JValue) = new Node(Some(name), value)
 

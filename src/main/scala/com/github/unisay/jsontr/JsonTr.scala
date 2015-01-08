@@ -1,6 +1,6 @@
 package com.github.unisay.jsontr
 
-import com.github.unisay.jsontr.Node.Nodes
+import com.github.unisay.jsontr.Node.{Nodes, nodesToJsonFields, nodesToJsonValues}
 import org.json4s.JsonAST._
 import org.json4s.native.JsonMethods._
 
@@ -9,6 +9,7 @@ object JsonTr {
   type Transform[T] = Function[T, Iterable[T]]
   val TemplatePattern = """\s*~match\s+([^\\"]+)\s*""".r
   val ValueOfPattern = """\s*~value\-of\s*([^\\"]+)\s*""".r
+  val ForEachPattern = """\s*~for\-each\s*([^\\"]+)\s*""".r
 
   case class Template(pathStr: String, body: JValue) {
     override def hashCode = pathStr.hashCode()
@@ -19,7 +20,7 @@ object JsonTr {
     }
   }
 
-  private def extractMatches(json: JValue): Seq[Template] = {
+  private def extractTemplates(json: JValue): Seq[Template] = {
     def validateMatchBody(body: JValue): JValue = body match {
       case JNull => throw new InvalidTemplateException("null value is not allowed in a match body")
       case JNothing => throw new InvalidTemplateException("empty value is not allowed in a match body")
@@ -41,33 +42,31 @@ object JsonTr {
     }
   }
 
-  private def rewrite(ast: JValue, fieldMapper: Transform[JField], valueMapper: Transform[JValue]) = {
-    def rec(jsonValue: JValue): JValue = jsonValue match {
-      case JObject(fields) => JObject(fields.map((field) => (field._1, rec(field._2))).flatMap(fieldMapper))
-      case JArray(elements) => JArray(elements.flatMap(elementValue => valueMapper(rec(elementValue))))
-      case x => x
+  private def rewrite(ast: JValue)(implicit nodeMapper: Transform[Node]) = {
+    def rec(node: Node): Iterable[Node] = nodeMapper(node).map {
+      case Node(maybeName, jsonArray: JArray) =>
+        Node(maybeName, JArray(jsonArray.arr.flatMap(jsonValue => nodesToJsonValues(rec(Node(jsonValue)))))) // todo: implicits
+      case Node(maybeName, jsonObject: JObject) =>
+        Node(maybeName, JObject(jsonObject.obj.flatMap(jsonField => nodesToJsonFields(rec(Node(jsonField))))))
+      case it => it
     }
-    rec(ast)
+    rec(Node(ast))
   }
 
   private def processTemplates(sourceAst: JValue, templates: Seq[Template]): Option[JValue] = {
     def processValues(template: Template, sourceNodes: Nodes, matchedNodes: Nodes): JValue = {
-      val fieldMapper: Transform[JField] = {
-        // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
-        case (ValueOfPattern(path), JString(fieldName)) =>
-          JsonPath.eval(path, sourceNodes, matchedNodes).map(it => (fieldName, it.jsonValue))
-        case (ValueOfPattern(path), _: JObject) =>
-          JsonPath.eval(path, sourceNodes, matchedNodes)
-        case field => List(field)
-      }
-      val valueMapper: Transform[JValue] = {
-        case JString(ValueOfPattern(path)) =>
-          JsonPath.eval(path, sourceNodes, matchedNodes).map(_.jsonValue)
-        case value => List(value)
-      }
       template.body match {
         case _: JArray | _: JObject =>
-          rewrite(template.body, fieldMapper, valueMapper)
+          rewrite(template.body) {
+            // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
+            case Node(Some(ValueOfPattern(path)), JString(fieldName)) =>
+              JsonPath.eval(path, sourceNodes, matchedNodes).map(node => (fieldName, node.jsonValue))
+            case Node(Some(ValueOfPattern(path)), _: JObject) =>
+              JsonPath.eval(path, sourceNodes, matchedNodes)
+            case Node(None, JString(ValueOfPattern(path))) =>
+              JsonPath.eval(path, sourceNodes, matchedNodes).map(_.jsonValue)
+            case node => List(node)
+          }.head.jsonValue
         case JString(ValueOfPattern(path)) =>
           JsonPath.eval(path, sourceNodes, matchedNodes).headOption.map(_.jsonValue).getOrElse(template.body)
         case _ => template.body
@@ -84,7 +83,7 @@ object JsonTr {
   def transform(sourceJson: String, templateJson: String): String = {
     val sourceAst = parse(sourceJson)
     val templateAst = parse(templateJson)
-    val matches = extractMatches(templateAst)
+    val matches = extractTemplates(templateAst)
     processTemplates(sourceAst, matches).map({
       case jsonObject: JObject => jsonObject
       case jsonArray: JArray => jsonArray

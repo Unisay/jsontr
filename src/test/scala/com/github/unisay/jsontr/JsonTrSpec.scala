@@ -332,7 +332,7 @@ class JsonTrSpec extends Specification {
           |{
           |  "~match /sup": [
           |    "before",
-          |    "~for-each *": "ignored",
+          |    { "~for-each *": "ignored" },
           |    "after"
           |  ]
           |}
@@ -425,7 +425,42 @@ class JsonTrSpec extends Specification {
       assertJsonEquals(expected, actual) must not throwA
     }.pendingUntilFixed("for-each")
 
-    "for-each array element decorate and copy it into object" in {
+    "for-each field copy it into object" in {
+      val source =
+        """
+          |{
+          |  "sup": {
+          |    "he": "h",
+          |    "she": "s",
+          |    "it": "i"
+          |  }
+          |}
+        """.stripMargin
+      val template =
+        """
+          |{
+          |  "~match /sup": {
+          |    "before": "before",
+          |    "~for-each *": "~value-of .",
+          |    "after": "after"
+          |  }
+          |}
+        """.stripMargin
+      val expected =
+        """
+          |{
+          |  "before": "before",
+          |  "he": "h",
+          |  "she": "s",
+          |  "it": "i",
+          |  "after": "after"
+          |}
+        """.stripMargin
+      val actual = transform(source, template)
+      assertJsonEquals(expected, actual) must not throwA
+    }.pendingUntilFixed("for-each")
+
+    "for-each field decorate and copy it into object" in {
       val source =
         """
           |{
@@ -443,7 +478,7 @@ class JsonTrSpec extends Specification {
           |    "before": "before",
           |    "~for-each *": {
           |      "a": "b",
-          |      "~value-of .": {},
+          |      "~value-of": ".",
           |      "c": "d"
           |    },
           |    "after": "after"
@@ -455,7 +490,13 @@ class JsonTrSpec extends Specification {
           |{
           |  "before": "before",
           |  "a": "b",
-          |  "he": "h"
+          |  "he": "h",
+          |  "c": "d",
+          |  "a": "b",
+          |  "she": "s",
+          |  "c": "d",
+          |  "a": "b",
+          |  "it": "i",
           |  "c": "d",
           |  "after": "after"
           |}
