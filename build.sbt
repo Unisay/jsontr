@@ -7,6 +7,8 @@ lazy val root = (project in file(".")).settings(
     "org.slf4j" % "slf4j-simple" % "1.7.7",
     "org.json4s" %% "json4s-native" % "3.2.10",
     "org.mvel" % "mvel2" % "2.2.2.Final",
+    "com.fasterxml.jackson.core" % "jackson-core" % "2.5.0",
+    // test
     "net.javacrumbs.json-unit" % "json-unit" % "1.5.1" % "test",
     "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13" % "test",
     "org.specs2" %% "specs2-core" % "2.4.15" % "test"
