@@ -1,12 +1,20 @@
 package com.github.unisay.jsontr
 
 import com.github.unisay.jsontr.MvelExpressionLang._
-import com.github.unisay.jsontr.Node.Nodes
-import org.json4s.JsonAST.{JArray, JObject, JValue}
+import com.github.unisay.jsontr.parser._
 
 object JsonPath {
 
-  def eval(pathStr: String, nodes: Nodes): Nodes = {
+  def eval(pathStr: String, node: Node): Seq[Node] = eval(pathStr, List(node))
+
+  def eval(pathStr: String, absoluteNodes: Seq[Node], relativeNodes: Seq[Node]): Seq[Node] = {
+    if (pathStr.startsWith("/"))
+      eval(pathStr, absoluteNodes)
+    else
+      eval(pathStr, relativeNodes)
+  }
+
+  def eval(pathStr: String, nodes: Seq[Node]): Seq[Node] = {
     require(nodes != null, "nodes is null")
     val path = JsonPathParser.parse(pathStr)
     path match {
@@ -16,45 +24,23 @@ object JsonPath {
     }
   }
 
-  def eval(pathStr: String, absoluteNodes: Nodes, relativeNodes: Nodes): Nodes = {
-    if (pathStr.startsWith("/"))
-      eval(pathStr, absoluteNodes)
-    else
-      eval(pathStr, relativeNodes)
-  }
-
-  private def evalPath(path: Seq[JsonPathStep], nodes: Nodes): Nodes = {
+  private def evalPath(path: Seq[JsonPathStep], nodes: Seq[Node]): Seq[Node] = {
     path match {
       case Seq() => nodes
       case Seq(step, tail@_*) => evalPath(tail, evalStep(step, nodes))
     }
   }
 
-  private def evalStep(step: JsonPathStep, nodes: Nodes)(implicit el: ExpressionLang): Nodes = {
+  private def evalStep(step: JsonPathStep, nodes: Seq[Node])(implicit el: ExpressionLang): Seq[Node] = {
 
-    def arrayStep(jsonArray: JArray): Nodes = step match {
-      case Root(_) => List(Node(jsonArray))
-      case All(_) => jsonArray.arr.map(Node(_))
-      case Index(index, _) => jsonArray.arr.lift(index).toIndexedSeq
-      case Prop(property, _) => Seq.empty
-    }
-
-    def objectStep(jsonObject: JObject): Nodes = step match {
-      case Root(_) => List(Node(jsonObject))
-      case All(_) => jsonObject.obj.map(Node(_))
-      case Prop(property, _) => jsonObject.obj.filter((field) => field._1 == property)
-      case Index(index, _) => Seq.empty
-    }
-
-    def jsonValueStep(jsonValue: JValue): Nodes = jsonValue match {
-      case jsonArray: JArray => arrayStep(jsonArray)
-      case jsonObject: JObject => objectStep(jsonObject)
-      case other => List(Node(other))
-    }
-
-    def nodeStep(node: Node): Nodes = node match {
-      case Node(None, jsonValue: JValue) => jsonValueStep(jsonValue)
-      case Node(Some(name), jsonValue: JValue) => jsonValueStep(jsonValue)
+    def nodeStep(node: Node): Seq[Node] = node match {
+      case multiNode: MultiNode => step match {
+        case Root(_) => List(multiNode)
+        case All(_) => multiNode.children
+        case Index(index, _) => multiNode.children.lift(index).toIndexedSeq
+        case Prop(property, _) => multiNode.children.filter(_.nameOptional == Some(property))
+      }
+      case other => List(other)
     }
 
     def filterByPredicate(node: Node): Option[Node] = step.predicate() match {

@@ -1,5 +1,6 @@
 package com.github.unisay.jsontr
 
+import com.github.unisay.jsontr.parser.Node
 import org.mvel2.MVEL
 
 /**

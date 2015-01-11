@@ -5,7 +5,6 @@ lazy val root = (project in file(".")).settings(
   libraryDependencies ++= Seq(
     "org.slf4j" % "slf4j-api" % "1.7.7",
     "org.slf4j" % "slf4j-simple" % "1.7.7",
-    "org.json4s" %% "json4s-native" % "3.2.10",
     "org.mvel" % "mvel2" % "2.2.2.Final",
     "com.fasterxml.jackson.core" % "jackson-core" % "2.5.0",
     // test

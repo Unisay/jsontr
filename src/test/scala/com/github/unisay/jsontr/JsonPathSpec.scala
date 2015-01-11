@@ -1,15 +1,13 @@
 package com.github.unisay.jsontr
 
-import com.github.unisay.jsontr.Node.Nodes
-import org.json4s.JsonAST._
-import org.json4s.native.JsonMethods._
+import com.github.unisay.jsontr.parser._
 import org.specs2.mutable.Specification
 
 class JsonPathSpec extends Specification {
 
   "JsonPath.eval" should {
 
-    val json: JValue = parse(
+    val json = NodeParser.parse(
       """
         |{
         |  "title": "Forrest Gump",
@@ -38,55 +36,50 @@ class JsonPathSpec extends Specification {
       """.stripMargin
     )
 
-    "require a non-null doc" in {
-      JsonPath.eval("/", null.asInstanceOf[JValue]) must throwA[IllegalArgumentException] and
-        (JsonPath.eval("/", null.asInstanceOf[Nodes]) must throwA[IllegalArgumentException])
-    }
-
-    "require a non-null path" in {
-      JsonPath.eval(null.asInstanceOf[String], json) must throwA[IllegalArgumentException]
-    }
-
     "return None for empty path" ! (JsonPath.eval("", json) must be empty)
 
     "return None for blank path" ! (JsonPath.eval(" ", json) must be empty)
 
     "return a root document by /" in {
-      JsonPath.eval("/", json) must contain(exactly(Node(json)))
+      JsonPath.eval("/", json) must contain(exactly(json))
     }
 
     "return a top field by absolute path" in {
-      JsonPath.eval("/title", json) must contain(exactly(Node("title", JString("Forrest Gump"))))
+      val title: Node = SNode("title", "Forrest Gump")
+      JsonPath.eval("/title", json) must contain(exactly(title))
     }
 
     "return a top field by relative path" in {
-      JsonPath.eval("title", json) must contain(exactly(Node("title", JString("Forrest Gump"))))
+      val title: Node = SNode("title", "Forrest Gump")
+      JsonPath.eval("title", json) must contain(exactly(title))
     }
 
     "return a nested field by absolute path" in {
-      JsonPath.eval("/meta/authors/director/name", json) must contain(exactly(Node("name", JString("Robert"))))
+      val name: Node = SNode("name", "Robert")
+      JsonPath.eval("/meta/authors/director/name", json) must contain(exactly(name))
     }
 
     "return a nested field by relative path" in {
-      JsonPath.eval("meta/authors/director/surname", json) must contain(exactly(Node("surname", JString("Zemeckis"))))
+      val surname: Node = SNode("surname", "Zemeckis")
+      JsonPath.eval("meta/authors/director/surname", json) must contain(exactly(surname))
     }
 
     "return all object fields" in {
-      JsonPath.eval("meta/authors/director/*", json) must contain(exactly(
-        Node("name", JString("Robert")),
-        Node("surname", JString("Zemeckis"))
+      JsonPath.eval("meta/authors/director/*", json) must contain(exactly[Node](
+        SNode("name", "Robert"),
+        SNode("surname", "Zemeckis")
       ))
     }
 
     "return array element by index" in {
-      JsonPath.eval("/2", parse( """[ "a", "b", "c" ]""")) must contain(exactly(Node(JString("c"))))
+      JsonPath.eval("/2", NodeParser.parse( """[ "a", "b", "c" ]""")) must contain(exactly[Node](SNode("c")))
     }
 
     "return all array elements" in {
-      JsonPath.eval("/*", parse( """[ "a", "b", "c" ]""")) must contain(exactly(
-        Node(JString("a")),
-        Node(JString("b")),
-        Node(JString("c"))
+      JsonPath.eval("/*", NodeParser.parse( """[ "a", "b", "c" ]""")) must contain(exactly[Node](
+        SNode("a"),
+        SNode("b"),
+        SNode("c")
       ))
     }
 
@@ -99,7 +92,7 @@ class JsonPathSpec extends Specification {
           |  [ 7, 8, 9 ]
           |]
         """.stripMargin
-      JsonPath.eval("/*/1", parse(json)) must contain(exactly(Node(JInt(2)), Node(JInt(5)), Node(JInt(8))))
+      JsonPath.eval("/*/1", NodeParser.parse(json)) must contain(exactly[Node](INode(2), INode(5), INode(8)))
     }
 
     "return by index from all array elements" in {
@@ -112,7 +105,7 @@ class JsonPathSpec extends Specification {
           |  { "a": 10 }
           |]
         """.stripMargin
-      JsonPath.eval("/*/1", parse(json)) must contain(exactly(Node(JInt(2)), Node(JInt(5)), Node(JInt(8))))
+      JsonPath.eval("/*/1", NodeParser.parse(json)) must contain(exactly[Node](INode(2), INode(5), INode(8)))
     }
 
     "return by property from all object elements" in {
@@ -121,31 +114,31 @@ class JsonPathSpec extends Specification {
           |[
           |  [ 1, 2, 3 ],
           |  { "a": 10 },
-          |  { "a": 11 },
+          |  { "a": 11 }
           |]
         """.stripMargin
-      JsonPath.eval("/*/a", parse(json)) must contain(exactly(Node("a", JInt(10)), Node("a", JInt(11))))
+      JsonPath.eval("/*/a", NodeParser.parse(json)) must contain(exactly[Node](INode("a", 10), INode("a", 11)))
     }
 
     "return all array elements" in {
-      JsonPath.eval("heroes/*", json) must contain(exactly(
-        Node(JObject(("name", JString("Forrest")), ("surname", JString("Gump")))),
-        Node(JObject(("name", JString("Dan")), ("surname", JString("Taylor")))),
-        Node(JObject(("name", JString("Jenny")), ("surname", JString("Curan"))))
+      JsonPath.eval("heroes/*", json) must contain(exactly[Node](
+        ONode(List(SNode("name", "Forrest"), SNode("surname", "Gump"))),
+        ONode(List(SNode("name", "Dan"), SNode("surname", "Taylor"))),
+        ONode(List(SNode("name", "Jenny"), SNode("surname", "Curan")))
       ))
     }
 
     "return a property from all array elements" in {
-      JsonPath.eval("heroes/*/name", json) must contain(exactly(
-        Node("name", JString("Forrest")),
-        Node("name", JString("Dan")),
-        Node("name", JString("Jenny"))
+      JsonPath.eval("heroes/*/name", json) must contain(exactly[Node](
+        SNode("name", "Forrest"),
+        SNode("name", "Dan"),
+        SNode("name", "Jenny")
       ))
     }
 
     "return filtered fields" in {
       JsonPath.eval("heroes/*/name[value.length > 3 && value.startsWith('F')]", json) must
-        contain(exactly(Node("name", JString("Forrest"))))
+        contain(exactly[Node](SNode("name", "Forrest")))
     }
 
   }

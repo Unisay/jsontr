@@ -1,5 +1,7 @@
 package com.github.unisay.jsontr
 
+import com.github.unisay.jsontr.parser.Node
+
 case class Expression(source: Any)
 
 object Expression {

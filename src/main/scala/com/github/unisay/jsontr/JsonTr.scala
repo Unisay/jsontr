@@ -1,8 +1,7 @@
 package com.github.unisay.jsontr
 
-import com.github.unisay.jsontr.Node.{Nodes, nodesToJsonFields, nodesToJsonValues}
-import org.json4s.JsonAST._
-import org.json4s.native.JsonMethods._
+import com.github.unisay.jsontr.parser.NodeParser.parse
+import com.github.unisay.jsontr.parser._
 
 object JsonTr {
 
@@ -11,84 +10,81 @@ object JsonTr {
   val ValueOfPattern = """\s*~value\-of\s*([^\\"]+)\s*""".r
   val ForEachPattern = """\s*~for\-each\s*([^\\"]+)\s*""".r
 
-  case class Template(pathStr: String, body: JValue) {
-    override def hashCode = pathStr.hashCode()
+  case class Template(path: String, node: Node) {
+    override def hashCode = path.hashCode()
 
     override def equals(that: Any): Boolean = that match {
-      case o: Template => this.pathStr == o.pathStr
+      case o: Template => this.path == o.path
       case _ => false
     }
   }
 
-  private def extractTemplates(json: JValue): Seq[Template] = {
-    def validateMatchBody(body: JValue): JValue = body match {
-      case JNull => throw new InvalidTemplateException("null value is not allowed in a match body")
-      case JNothing => throw new InvalidTemplateException("empty value is not allowed in a match body")
-      case _: JBool => throw new InvalidTemplateException("boolean value is not allowed in a match body")
-      case _: JNumber => throw new InvalidTemplateException("numeric value is not allowed in a match body")
+  private def extractTemplates(node: Node): Seq[Template] = {
+    def validateTemplateNode(templateNode: Node): Node = templateNode match {
+      case _: NullNode => throw new InvalidTemplateException("null value is not allowed in a match body")
+      case _: BNode => throw new InvalidTemplateException("boolean value is not allowed in a match body")
+      case _: INode | _: DNode => throw new InvalidTemplateException("numeric value is not allowed in a match body")
       case it => it
     }
 
-    def fieldToMatch(field: JField): Option[Template] = {
-      field match {
-        case (TemplatePattern(path), body) => Some(new Template(path, validateMatchBody(body)))
+    def fieldToMatch(node: Node): Option[Template] = {
+      node match {
+        case Node(TemplatePattern(path)) => Some(new Template(path, validateTemplateNode(node)))
         case _ => None
       }
     }
 
-    json match {
-      case JObject(fields) => fields.flatMap(fieldToMatch).distinct
+    node match {
+      case ONode(_, children) => children.flatMap(fieldToMatch).distinct
       case _ => throw new InvalidTemplateException("Root JSON object expected")
     }
   }
 
-  private def rewrite(ast: JValue)(implicit nodeMapper: Transform[Node]) = {
+  private def rewrite(node: Node)(implicit nodeMapper: Transform[Node]) = {
     def rec(node: Node): Iterable[Node] = nodeMapper(node).map {
-      case Node(maybeName, jsonArray: JArray) =>
-        Node(maybeName, JArray(jsonArray.arr.flatMap(jsonValue => nodesToJsonValues(rec(Node(jsonValue)))))) // todo: implicits
-      case Node(maybeName, jsonObject: JObject) =>
-        Node(maybeName, JObject(jsonObject.obj.flatMap(jsonField => nodesToJsonFields(rec(Node(jsonField))))))
+      case ANode(maybeName, children) => ANode(maybeName, children.flatMap(rec))
+      case ONode(maybeName, children) => ONode(maybeName, children.flatMap(rec))
       case it => it
     }
-    rec(Node(ast))
+    rec(node)
   }
 
-  private def processTemplates(sourceAst: JValue, templates: Seq[Template]): Option[JValue] = {
-    def processValues(template: Template, sourceNodes: Nodes, matchedNodes: Nodes): JValue = {
-      template.body match {
-        case _: JArray | _: JObject =>
-          rewrite(template.body) {
+  private def processTemplates(sourceNode: MultiNode, templates: Seq[Template]): Option[Node] = {
+    def processValues(template: Template, sourceNodes: Seq[Node], matchedNodes: Seq[Node]): Node = {
+      template.node match {
+        case _: MultiNode =>
+          rewrite(template.node) {
             // Key from template overrides keys from JsonPath: (value-of path) : "fieldName"
-            case Node(Some(ValueOfPattern(path)), JString(fieldName)) =>
-              JsonPath.eval(path, sourceNodes, matchedNodes).map(node => (fieldName, node.jsonValue))
-            case Node(Some(ValueOfPattern(path)), _: JObject) =>
+            case SNode(Some(ValueOfPattern(path)), fieldName) =>
               JsonPath.eval(path, sourceNodes, matchedNodes)
-            case Node(None, JString(ValueOfPattern(path))) =>
-              JsonPath.eval(path, sourceNodes, matchedNodes).map(_.jsonValue)
+            case MultiNode(Some(ValueOfPattern(path)), _) =>
+              JsonPath.eval(path, sourceNodes, matchedNodes)
             case node => List(node)
-          }.head.jsonValue
-        case JString(ValueOfPattern(path)) =>
-          JsonPath.eval(path, sourceNodes, matchedNodes).headOption.map(_.jsonValue).getOrElse(template.body)
-        case _ => template.body
+          }.head
+        case SNode(Some(ValueOfPattern(path)), _) =>
+          JsonPath.eval(path, sourceNodes, matchedNodes).headOption.getOrElse(template.node)
+        case _ => template.node
       }
     }
 
     templates
-      .map(template => (template, JsonPath.eval(template.pathStr, sourceAst)))
-      .map(matched => processValues(matched._1, sourceAst, matched._2))
+      .map(template => (template, JsonPath.eval(template.path, sourceNode)))
+      .map(matched => processValues(matched._1, sourceNode.children, matched._2))
       .headOption
   }
 
   @throws[InvalidTemplateException]("if template is invalid")
   def transform(sourceJson: String, templateJson: String): String = {
-    val sourceAst = parse(sourceJson)
-    val templateAst = parse(templateJson)
-    val matches = extractTemplates(templateAst)
-    processTemplates(sourceAst, matches).map({
-      case jsonObject: JObject => jsonObject
-      case jsonArray: JArray => jsonArray
+    val sourceMultiNode = parse(sourceJson) match {
+      case node: MultiNode => node
+      case _ => throw new InvalidTemplateException("Root node must be object or array")
+    }
+    val templateNode = parse(templateJson)
+    val matches = extractTemplates(templateNode)
+    processTemplates(sourceMultiNode, matches).map({
+      case multiNode: MultiNode => multiNode
       case jsonType => throw new JsonTransformationException(s"Resulting JSON document has $jsonType as a root")
-    }).map(render).map(pretty).getOrElse("")
+    }).map(NodeWriter.write).getOrElse("")
   }
 
 }
