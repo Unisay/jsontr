@@ -8,6 +8,17 @@ class NodeWriterSpec extends Specification {
 
   "NodeWriter" should {
 
+    "write string containing quote" in {
+      write(SNode("\"a", "\"b")) must be equalTo """{"\"a":"\"b"}"""
+    }
+
+    "write string nested in an object" in {
+      val node = ONode(List(
+        SNode(Some("a"), "b")
+      ))
+      write(node) must be equalTo """{"a":"b"}"""
+    }
+
     "write array nested in an object" in {
       val node = ONode(List(
         ONode("nested", List(

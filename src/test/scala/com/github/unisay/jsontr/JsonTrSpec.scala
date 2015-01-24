@@ -51,7 +51,9 @@ class JsonTrSpec extends Specification {
     "handle duplicate matches" in {
       val replacement = """ { "a": "b" } """
       val template = s""" { "~match /": $replacement, "~match /": []} """
-      assertJsonEquals(replacement, transform(json, template)) must not throwA
+      val actual = transform(json, template)
+      val expected = replacement
+      assertJsonEquals(expected, actual) must not throwA
     }
 
     "match root, replace it with array" in {
@@ -77,7 +79,7 @@ class JsonTrSpec extends Specification {
 
     "match root, do not replace with string" in {
       val template = """ { "~match /": "foo" } """
-      transform(json, template) must throwA[JsonTransformationException]
+      transform(json, template) must throwA[InvalidTemplateException]
     }
 
     "match root, do not replace with number" in {
@@ -95,7 +97,9 @@ class JsonTrSpec extends Specification {
       val template =
         """
           |{
-          |  "~match /": "~value-of /a"
+          |  "~match /": {
+          |    "~value-of": "/a/*"
+          |  }
           |}
         """.stripMargin
       val expected =
@@ -149,7 +153,7 @@ class JsonTrSpec extends Specification {
           |{
           |  "~match /": {
           |    "before": 0,
-          |    "~value-of /a" : "other-key",
+          |    "other-key": "~value-of /a",
           |    "after": 2
           |  }
           |}

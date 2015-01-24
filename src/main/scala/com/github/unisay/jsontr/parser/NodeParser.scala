@@ -6,6 +6,8 @@ import scala.collection.mutable.ListBuffer
 
 sealed trait Node {
   val nameOptional: Option[String]
+
+  def detached: Node
 }
 
 object Node {
@@ -20,13 +22,17 @@ object MultiNode {
   def unapply(x: MultiNode): Option[(Option[String], Seq[Node])] = Some((x.nameOptional, x.children))
 }
 
-case class NullNode(nameOptional: Option[String] = None) extends Node
+case class NullNode(nameOptional: Option[String] = None) extends Node {
+  def detached = NullNode(None)
+}
 
 case object NullNode {
   def apply(name: String) = new NullNode(Some(name))
 }
 
-case class SNode(nameOptional: Option[String], value: String) extends Node
+case class SNode(nameOptional: Option[String], value: String) extends Node {
+  def detached = SNode(None, value)
+}
 
 case object SNode {
 
@@ -36,7 +42,9 @@ case object SNode {
 
 }
 
-case class BNode(nameOptional: Option[String], value: Boolean) extends Node
+case class BNode(nameOptional: Option[String], value: Boolean) extends Node {
+  def detached = BNode(None, value)
+}
 
 case object BNode {
 
@@ -46,7 +54,9 @@ case object BNode {
 
 }
 
-case class INode(nameOptional: Option[String], value: BigInt) extends Node
+case class INode(nameOptional: Option[String], value: BigInt) extends Node {
+  def detached = INode(None, value)
+}
 
 case object INode {
 
@@ -56,7 +66,9 @@ case object INode {
 
 }
 
-case class DNode(nameOptional: Option[String], value: Double) extends Node
+case class DNode(nameOptional: Option[String], value: Double) extends Node {
+  def detached = DNode(None, value)
+}
 
 case object DNode {
 
@@ -65,7 +77,9 @@ case object DNode {
   def apply(value: Double) = new DNode(None, value)
 }
 
-case class ANode(nameOptional: Option[String], children: Seq[Node]) extends MultiNode
+case class ANode(nameOptional: Option[String], children: Seq[Node]) extends MultiNode {
+  def detached = ANode(None, children)
+}
 
 case object ANode {
 
@@ -74,7 +88,9 @@ case object ANode {
   def apply(children: Seq[Node] = Seq.empty) = new ANode(None, children)
 }
 
-case class ONode(nameOptional: Option[String], children: Seq[Node]) extends MultiNode
+case class ONode(nameOptional: Option[String], children: Seq[Node]) extends MultiNode {
+  def detached = ONode(None, children)
+}
 
 case object ONode {
 

@@ -44,9 +44,23 @@ class JsonPathSpec extends Specification {
       JsonPath.eval("/", json) must contain(exactly(json))
     }
 
-    "return a top field by absolute path" in {
+    "return a string node by absolute path" in {
       val title: Node = SNode("title", "Forrest Gump")
       JsonPath.eval("/title", json) must contain(exactly(title))
+    }
+
+    "return a object node by absolute path" in {
+      val json = NodeParser.parse(
+        """
+          |{
+          |  "a": {
+          |   "b": "c"
+          |  }
+          |}
+        """.stripMargin
+      )
+      val node: Node = ONode("a", List(SNode("b", "c")))
+      JsonPath.eval("/a", json) must contain(exactly(node))
     }
 
     "return a top field by relative path" in {

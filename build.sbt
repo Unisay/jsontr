@@ -14,6 +14,17 @@ lazy val root = (project in file(".")).settings(
   )
 )
 
+scalacOptions := Seq(
+  "-unchecked",
+  "-deprecation",
+  "-encoding", "utf8",
+  "-feature",
+  "-language:implicitConversions",
+  "-language:higherKinds",
+  "-language:existentials",
+  "-language:postfixOps"
+)
+
 scalacOptions in Test ++= Seq("-Yrangepos")
 
 // Read here for optional jars and dependencies:
